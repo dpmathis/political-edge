@@ -31,19 +31,10 @@ _ensure_db()
 st.title("Political Edge")
 st.subheader("Political & Regulatory Trading Intelligence")
 
-st.markdown("""
-**RegWatch** — Track regulatory events and map them to market-tradeable signals.
-
-Use the sidebar to navigate between pages and apply filters.
-
----
-
-### Quick Start
-1. Run `python scripts/run_collectors.py` to fetch the latest data
-2. Navigate to **RegWatch** to review regulatory events
-3. Use filters to narrow by sector, impact score, or event type
-4. Click on events to see details and add your analysis
-""")
+st.markdown(
+    "**RegWatch** — Track regulatory events and map them to market-tradeable signals. "
+    "Use the sidebar to navigate between pages and apply filters."
+)
 
 # Show database stats
 import sqlite3
@@ -60,3 +51,86 @@ cols = st.columns(len(stats))
 for i, (label, value) in enumerate(stats.items()):
     with cols[i]:
         st.metric(label, f"{value:,}")
+
+# --- Data Collection Controls ---
+st.markdown("---")
+st.subheader("Data Collection")
+
+col_collect, col_backfill = st.columns(2)
+
+with col_collect:
+    st.markdown("**Collect Latest** — Fetch the last 7 days of Federal Register data and current market prices.")
+    if st.button("Collect Now", type="primary"):
+        with st.status("Running collectors...", expanded=True) as status:
+            from collectors import federal_register, market_data
+            from analysis import sector_mapper, impact_scorer
+
+            st.write("Fetching Federal Register events...")
+            new_events = federal_register.collect()
+            st.write(f"  {new_events} new events")
+
+            st.write("Tagging sectors...")
+            tagged = sector_mapper.tag_all_untagged()
+            st.write(f"  {tagged} events tagged")
+
+            st.write("Scoring impact...")
+            scored = impact_scorer.score_all_unscored()
+            st.write(f"  {scored} events scored")
+
+            st.write("Fetching market data...")
+            rows = market_data.collect()
+            st.write(f"  {rows} rows inserted")
+
+            status.update(label="Collection complete!", state="complete")
+        st.cache_data.clear()
+        st.rerun()
+
+with col_backfill:
+    st.markdown("**Backfill** — Load historical data from a custom date range.")
+    bf_col1, bf_col2 = st.columns(2)
+    with bf_col1:
+        from datetime import date, timedelta
+        bf_start = st.date_input("Start", value=date(2024, 1, 1), key="bf_start")
+    with bf_col2:
+        bf_end = st.date_input("End", value=date.today(), key="bf_end")
+
+    if st.button("Run Backfill"):
+        with st.status("Running backfill...", expanded=True) as status:
+            from collectors import federal_register, market_data
+            from analysis import sector_mapper, impact_scorer
+            from datetime import timedelta as td
+
+            start = bf_start
+            end = bf_end
+            chunk_days = 90
+            total_events = 0
+            current = start
+
+            while current < end:
+                chunk_end = min(current + td(days=chunk_days), end)
+                st.write(f"Federal Register: {current} to {chunk_end}...")
+                new = federal_register.backfill(
+                    current.isoformat(), chunk_end.isoformat(), max_pages_per_type=50
+                )
+                total_events += new
+                current = chunk_end + td(days=1)
+
+            st.write(f"  {total_events} total new events")
+
+            st.write("Tagging sectors...")
+            tagged = sector_mapper.tag_all_untagged()
+            st.write(f"  {tagged} events tagged")
+
+            st.write("Scoring impact...")
+            scored = impact_scorer.score_all_unscored()
+            st.write(f"  {scored} events scored")
+
+            st.write("Fetching market data...")
+            rows = market_data.collect(
+                start_date=bf_start.isoformat(), end_date=bf_end.isoformat()
+            )
+            st.write(f"  {rows} rows inserted")
+
+            status.update(label="Backfill complete!", state="complete")
+        st.cache_data.clear()
+        st.rerun()
