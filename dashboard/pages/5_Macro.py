@@ -77,59 +77,61 @@ def load_yield_curve_data():
 # ── Row 1: Current Regime ─────────────────────────────────────────────
 regimes = load_regime_data()
 
+# Default color for sparklines when no regime data
+color = "#3b82f6"
+
 if regimes.empty:
     st.warning(
         "No macro regime data yet. Go to the **Home** page and click **Run Backfill** "
         "with a start date of **2023-01-01** to populate FRED macro data and classify the regime."
     )
     st.info("The FRED collector needs 12+ months of data to calculate rate-of-change for regime classification.")
-    st.stop()
+else:
+    current = regimes.iloc[0]
+    q = int(current["quadrant"])
+    color = QUADRANT_COLORS.get(q, "#95a5a6")
+    confidence = current.get("confidence", "unknown")
+    modifier = current.get("position_size_modifier", 1.0)
 
-current = regimes.iloc[0]
-q = int(current["quadrant"])
-color = QUADRANT_COLORS.get(q, "#95a5a6")
-confidence = current.get("confidence", "unknown")
-modifier = current.get("position_size_modifier", 1.0)
-
-st.markdown(
-    f"""
-    <div style="background:{color}22; border:2px solid {color}; border-radius:12px; padding:24px; margin-bottom:20px;">
-        <div style="display:flex; align-items:center; gap:20px;">
-            <div style="font-size:64px; font-weight:bold; color:{color};">Q{q}</div>
-            <div>
-                <div style="font-size:28px; font-weight:bold;">{QUADRANT_LABELS.get(q, 'Unknown')}</div>
-                <div style="font-size:16px; color:#666;">
-                    Growth {'accelerating' if q in (1,2) else 'decelerating'},
-                    Inflation {'accelerating' if q in (2,3) else 'decelerating'}
-                </div>
-                <div style="margin-top:8px;">
-                    <span style="background:{color}44; padding:4px 10px; border-radius:6px; margin-right:8px;">
-                        Confidence: <b>{confidence}</b>
-                    </span>
-                    <span style="background:{color}44; padding:4px 10px; border-radius:6px;">
-                        Position Modifier: <b>{modifier:.1f}x</b>
-                    </span>
+    st.markdown(
+        f"""
+        <div style="background:{color}22; border:2px solid {color}; border-radius:12px; padding:24px; margin-bottom:20px;">
+            <div style="display:flex; align-items:center; gap:20px;">
+                <div style="font-size:64px; font-weight:bold; color:{color};">Q{q}</div>
+                <div>
+                    <div style="font-size:28px; font-weight:bold;">{QUADRANT_LABELS.get(q, 'Unknown')}</div>
+                    <div style="font-size:16px; color:#666;">
+                        Growth {'accelerating' if q in (1,2) else 'decelerating'},
+                        Inflation {'accelerating' if q in (2,3) else 'decelerating'}
+                    </div>
+                    <div style="margin-top:8px;">
+                        <span style="background:{color}44; padding:4px 10px; border-radius:6px; margin-right:8px;">
+                            Confidence: <b>{confidence}</b>
+                        </span>
+                        <span style="background:{color}44; padding:4px 10px; border-radius:6px;">
+                            Position Modifier: <b>{modifier:.1f}x</b>
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+        """,
+        unsafe_allow_html=True,
+    )
 
-# Favored / Avoid sectors
-from analysis.macro_regime import QUADRANTS
+    # Favored / Avoid sectors
+    from analysis.macro_regime import QUADRANTS
 
-regime_info = QUADRANTS.get(q, {})
-col_fav, col_avoid, col_bias = st.columns(3)
-with col_fav:
-    sectors = ", ".join(regime_info.get("favored_sectors", []))
-    st.metric("Favored Sectors", sectors or "N/A")
-with col_avoid:
-    sectors = ", ".join(regime_info.get("avoid_sectors", []))
-    st.metric("Avoid Sectors", sectors or "N/A")
-with col_bias:
-    st.metric("Equity Bias", regime_info.get("equity_bias", "N/A").replace("_", " ").title())
+    regime_info = QUADRANTS.get(q, {})
+    col_fav, col_avoid, col_bias = st.columns(3)
+    with col_fav:
+        sectors = ", ".join(regime_info.get("favored_sectors", []))
+        st.metric("Favored Sectors", sectors or "N/A")
+    with col_avoid:
+        sectors = ", ".join(regime_info.get("avoid_sectors", []))
+        st.metric("Avoid Sectors", sectors or "N/A")
+    with col_bias:
+        st.metric("Equity Bias", regime_info.get("equity_bias", "N/A").replace("_", " ").title())
 
 # ── Row 2: Key Indicators ─────────────────────────────────────────────
 st.markdown("---")
@@ -196,7 +198,9 @@ st.subheader("Macro Regime History")
 col_regime, col_yield = st.columns(2)
 
 with col_regime:
-    if len(regimes) >= 2:
+    if regimes.empty:
+        st.info("No regime data yet. Run FRED backfill from 2023 to populate.")
+    elif len(regimes) >= 2:
         regime_plot = regimes.sort_values("date").copy()
         regime_plot["color"] = regime_plot["quadrant"].map(QUADRANT_COLORS)
         regime_plot["label"] = regime_plot["quadrant"].apply(lambda x: f"Q{x} {QUADRANT_LABELS.get(x, '')}")
