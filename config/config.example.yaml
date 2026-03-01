@@ -1,0 +1,155 @@
+# Political Edge Configuration
+# API Keys (also settable via environment variables)
+api_keys:
+  congress_gov: ""          # CONGRESS_GOV_API_KEY env var
+  regulations_gov: ""       # REGULATIONS_GOV_API_KEY env var
+  quiver_quant: ""          # QUIVER_QUANT_API_KEY env var
+  tiingo: ""                # TIINGO_API_KEY env var
+
+# Collection Schedule (cron expressions)
+schedule:
+  federal_register: "0 */6 * * *"   # Every 6 hours
+  congress: "0 */12 * * *"          # Every 12 hours
+  usaspending: "0 18 * * 1-5"       # 6pm ET weekdays
+  congress_trades: "0 8 * * *"      # Daily 8am
+  lobbying: "0 8 1 1,4,7,10 *"     # Quarterly
+  market_data: "0 17 * * 1-5"       # 5pm ET weekdays
+
+# Alert Configuration
+alerts:
+  email: ""
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  smtp_user: ""
+  smtp_password: ""  # Gmail app password
+
+  rules:
+    - name: "High-Impact Regulatory Event"
+      condition: "impact_score >= 4"
+      table: "regulatory_events"
+
+    - name: "New Executive Order"
+      condition: "event_type = 'executive_order'"
+      table: "regulatory_events"
+
+    - name: "FDA Final Rule"
+      condition: "agency LIKE '%FDA%' AND event_type = 'final_rule'"
+      table: "regulatory_events"
+
+# Initial Watchlist
+watchlist:
+  defense:
+    - ticker: LMT
+      name: Lockheed Martin
+      sector: Defense
+      subsector: Aerospace & Defense
+      agencies: "DOD,Army,Navy,Air Force"
+      keywords: "defense,military,missile,f-35,hypersonic"
+    - ticker: RTX
+      name: RTX Corporation
+      sector: Defense
+      subsector: Aerospace & Defense
+      agencies: "DOD,Army,Navy,Air Force"
+      keywords: "defense,military,raytheon,pratt,missile"
+    - ticker: GD
+      name: General Dynamics
+      sector: Defense
+      subsector: Aerospace & Defense
+      agencies: "DOD,Navy,Army"
+      keywords: "defense,military,submarine,tank,gulfstream"
+    - ticker: NOC
+      name: Northrop Grumman
+      sector: Defense
+      subsector: Aerospace & Defense
+      agencies: "DOD,Air Force,Space Force"
+      keywords: "defense,military,b-21,bomber,space"
+    - ticker: BA
+      name: Boeing
+      sector: Defense
+      subsector: Aerospace & Defense
+      agencies: "DOD,FAA,NASA"
+      keywords: "defense,military,boeing,aircraft,737,777"
+
+  healthcare:
+    - ticker: UNH
+      name: UnitedHealth Group
+      sector: Healthcare
+      subsector: Health Insurance
+      agencies: "CMS,HHS"
+      keywords: "medicare,medicaid,health insurance,managed care"
+    - ticker: HUM
+      name: Humana
+      sector: Healthcare
+      subsector: Health Insurance
+      agencies: "CMS,HHS"
+      keywords: "medicare,advantage,medicaid,health insurance"
+    - ticker: PFE
+      name: Pfizer
+      sector: Healthcare
+      subsector: Pharmaceuticals
+      agencies: "FDA"
+      keywords: "drug approval,nda,biologics,vaccine,pharmaceutical"
+    - ticker: LLY
+      name: Eli Lilly
+      sector: Healthcare
+      subsector: Pharmaceuticals
+      agencies: "FDA,CMS"
+      keywords: "drug approval,weight loss,diabetes,pharmaceutical"
+
+  energy:
+    - ticker: XOM
+      name: Exxon Mobil
+      sector: Energy
+      subsector: Oil & Gas
+      agencies: "DOE,EPA,FERC"
+      keywords: "oil,gas,drilling,pipeline,lng,energy"
+    - ticker: NEE
+      name: NextEra Energy
+      sector: Energy
+      subsector: Renewables
+      agencies: "DOE,FERC,EPA"
+      keywords: "renewable,solar,wind,clean energy,grid"
+
+  technology:
+    - ticker: GOOGL
+      name: Alphabet
+      sector: Technology
+      subsector: Internet
+      agencies: "DOJ,FTC,FCC"
+      keywords: "antitrust,google,search,advertising,ai"
+    - ticker: META
+      name: Meta Platforms
+      sector: Technology
+      subsector: Social Media
+      agencies: "FTC,FCC"
+      keywords: "privacy,social media,data,meta,facebook"
+
+# Contractor name → ticker mappings (for USASpending)
+contractor_mappings:
+  LMT:
+    - "LOCKHEED MARTIN CORPORATION"
+    - "LOCKHEED MARTIN"
+  RTX:
+    - "RTX CORPORATION"
+    - "RAYTHEON"
+    - "RAYTHEON COMPANY"
+    - "PRATT & WHITNEY"
+  GD:
+    - "GENERAL DYNAMICS CORPORATION"
+    - "GENERAL DYNAMICS"
+    - "ELECTRIC BOAT CORPORATION"
+    - "GULFSTREAM AEROSPACE"
+  NOC:
+    - "NORTHROP GRUMMAN CORPORATION"
+    - "NORTHROP GRUMMAN"
+  BA:
+    - "THE BOEING COMPANY"
+    - "BOEING COMPANY"
+    - "BOEING"
+  UNH:
+    - "UNITEDHEALTH GROUP"
+    - "UNITED HEALTHCARE"
+  HUM:
+    - "HUMANA"
+    - "HUMANA GOVERNMENT BUSINESS"
+    - "HUMANA GOVERNMENT BUSINESS INC"

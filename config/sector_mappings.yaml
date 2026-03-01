@@ -1,0 +1,130 @@
+# Sector → Keyword Mappings
+# Used by sector_mapper.py to auto-tag regulatory events
+
+Defense:
+  - defense
+  - military
+  - pentagon
+  - dod
+  - department of defense
+  - army
+  - navy
+  - air force
+  - space force
+  - marines
+  - ndaa
+  - national defense authorization
+  - defense appropriations
+  - munitions
+  - weapons system
+  - cybersecurity
+  - classified
+  - lockheed
+  - raytheon
+  - northrop
+  - general dynamics
+  - boeing defense
+  - l3harris
+  - bae systems
+
+Healthcare:
+  - fda
+  - cms
+  - hhs
+  - medicare
+  - medicaid
+  - drug approval
+  - new drug application
+  - biologics
+  - medical device
+  - clinical trial
+  - affordable care act
+  - health insurance
+  - prescription drug
+  - pharmacy benefit
+  - hospital
+  - telehealth
+  - mental health
+  - pharmaceutical
+  - biotech
+
+Energy:
+  - doe
+  - ferc
+  - epa
+  - clean energy
+  - renewable
+  - solar
+  - wind
+  - oil
+  - gas
+  - pipeline
+  - drilling
+  - fracking
+  - lng
+  - electric vehicle
+  - ev
+  - battery
+  - grid
+  - transmission
+  - carbon
+  - emissions
+  - climate
+  - paris agreement
+  - nuclear
+  - hydrogen
+
+Technology:
+  - ftc
+  - fcc
+  - antitrust
+  - merger
+  - acquisition
+  - monopoly
+  - data privacy
+  - section 230
+  - net neutrality
+  - spectrum
+  - artificial intelligence
+  - ai regulation
+  - crypto
+  - digital asset
+  - semiconductor
+  - chips act
+  - export control
+  - tiktok
+  - big tech
+  - platform regulation
+
+Financial:
+  - sec
+  - cftc
+  - fed
+  - federal reserve
+  - dodd-frank
+  - banking
+  - fintech
+  - cryptocurrency
+  - stablecoin
+  - capital requirements
+  - stress test
+  - consumer protection
+  - cfpb
+  - money laundering
+  - sanctions
+  - ofac
+
+Agriculture:
+  - usda
+  - farm bill
+  - crop insurance
+  - agricultural
+  - tariff
+  - trade
+  - import
+  - export
+  - commodity
+  - food safety
+  - organic
+  - gmo
+  - pesticide
