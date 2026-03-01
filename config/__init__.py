@@ -9,8 +9,15 @@ DB_PATH = os.path.join(_PROJECT_ROOT, "data", "political_edge.db")
 
 def load_config() -> dict:
     path = os.path.join(_CONFIG_DIR, "config.yaml")
+    if not os.path.exists(path):
+        # Fall back to example config (e.g. on Streamlit Cloud where config.yaml is gitignored)
+        path = os.path.join(_CONFIG_DIR, "config.example.yaml")
     with open(path, "r") as f:
         cfg = yaml.safe_load(f)
+
+    # Ensure api_keys section exists
+    if "api_keys" not in cfg:
+        cfg["api_keys"] = {}
 
     # Allow env var overrides for API keys
     env_map = {
@@ -26,6 +33,19 @@ def load_config() -> dict:
         env_val = os.environ.get(env_var)
         if env_val:
             cfg["api_keys"][key] = env_val
+
+    # Streamlit secrets integration — secrets appear as env vars on Streamlit Cloud
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            for key in env_map:
+                if key in st.secrets:
+                    cfg["api_keys"][key] = st.secrets[key]
+            # Alert config from secrets
+            if "alerts" in st.secrets:
+                cfg.setdefault("alerts", {}).update(dict(st.secrets["alerts"]))
+    except Exception:
+        pass
 
     return cfg
 

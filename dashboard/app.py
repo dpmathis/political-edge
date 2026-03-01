@@ -53,10 +53,18 @@ stats = {
 }
 conn.close()
 
-cols = st.columns(len(stats))
-for i, (label, value) in enumerate(stats.items()):
-    with cols[i]:
+stat_items = list(stats.items())
+row1 = stat_items[:5]
+row2 = stat_items[5:]
+cols1 = st.columns(len(row1))
+for i, (label, value) in enumerate(row1):
+    with cols1[i]:
         st.metric(label, f"{value:,}")
+if row2:
+    cols2 = st.columns(len(row2))
+    for i, (label, value) in enumerate(row2):
+        with cols2[i]:
+            st.metric(label, f"{value:,}")
 
 # --- Data Collection Controls ---
 st.markdown("---")
