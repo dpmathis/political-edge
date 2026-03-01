@@ -9,7 +9,7 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from collectors import federal_register, market_data
-from collectors import congress, lobbying, regulations_gov
+from collectors import congress, lobbying, regulations_gov, fred_macro
 from analysis import sector_mapper, impact_scorer
 
 logging.basicConfig(
@@ -84,6 +84,14 @@ def main():
         logger.info("Lobbying: %d filings", new)
     except Exception as e:
         logger.error("Lobbying backfill failed: %s", e, exc_info=True)
+
+    # FRED macro data backfill (requires API key)
+    try:
+        logger.info("Backfilling FRED macro data from %s...", START_DATE)
+        new = fred_macro.backfill(START_DATE)
+        logger.info("FRED: %d observations", new)
+    except Exception as e:
+        logger.error("FRED backfill failed: %s", e, exc_info=True)
 
     logger.info("Backfill complete.")
 

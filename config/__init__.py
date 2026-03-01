@@ -18,6 +18,7 @@ def load_config() -> dict:
         "regulations_gov": "REGULATIONS_GOV_API_KEY",
         "quiver_quant": "QUIVER_QUANT_API_KEY",
         "tiingo": "TIINGO_API_KEY",
+        "fred_api_key": "FRED_API_KEY",
     }
     for key, env_var in env_map.items():
         env_val = os.environ.get(env_var)
@@ -47,6 +48,14 @@ def load_tariff_events() -> list[dict]:
     with open(path, "r") as f:
         data = yaml.safe_load(f)
     return data.get("tariff_events", [])
+
+
+def load_fomc_dates() -> list[dict]:
+    """Load FOMC meeting dates."""
+    path = os.path.join(_CONFIG_DIR, "fomc_dates.yaml")
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+    return data.get("fomc_meetings", [])
 
 
 def get_api_key(key_name: str) -> str | None:

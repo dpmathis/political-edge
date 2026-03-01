@@ -5,6 +5,7 @@ api_keys:
   regulations_gov: ""       # REGULATIONS_GOV_API_KEY env var
   quiver_quant: ""          # QUIVER_QUANT_API_KEY env var
   tiingo: ""                # TIINGO_API_KEY env var
+  fred_api_key: ""          # FRED_API_KEY env var
 
 # Collection Schedule (cron expressions)
 schedule:
@@ -27,14 +28,25 @@ alerts:
     - name: "High-Impact Regulatory Event"
       condition: "impact_score >= 4"
       table: "regulatory_events"
+      lookback_hours: 24
 
     - name: "New Executive Order"
       condition: "event_type = 'executive_order'"
       table: "regulatory_events"
+      lookback_hours: 24
 
     - name: "FDA Final Rule"
       condition: "agency LIKE '%FDA%' AND event_type = 'final_rule'"
       table: "regulatory_events"
+      lookback_hours: 24
+
+    - name: "Lobbying Spend Spike (>25% QoQ)"
+      custom_query: true
+      lookback_hours: 168
+
+    - name: "Macro Regime Change"
+      custom_query: true
+      lookback_hours: 24
 
 # Collection Settings
 collection:

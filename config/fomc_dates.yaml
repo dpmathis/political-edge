@@ -1,0 +1,58 @@
+# FOMC Meeting Dates
+# Source: https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
+# Two-day meetings: only the second day (announcement day) is listed
+
+fomc_meetings:
+  # 2024
+  - date: "2024-01-31"
+    type: "meeting"
+  - date: "2024-03-20"
+    type: "meeting"
+  - date: "2024-05-01"
+    type: "meeting"
+  - date: "2024-06-12"
+    type: "meeting"
+  - date: "2024-07-31"
+    type: "meeting"
+  - date: "2024-09-18"
+    type: "meeting"
+  - date: "2024-11-07"
+    type: "meeting"
+  - date: "2024-12-18"
+    type: "meeting"
+
+  # 2025
+  - date: "2025-01-29"
+    type: "meeting"
+  - date: "2025-03-19"
+    type: "meeting"
+  - date: "2025-05-07"
+    type: "meeting"
+  - date: "2025-06-18"
+    type: "meeting"
+  - date: "2025-07-30"
+    type: "meeting"
+  - date: "2025-09-17"
+    type: "meeting"
+  - date: "2025-11-05"
+    type: "meeting"
+  - date: "2025-12-17"
+    type: "meeting"
+
+  # 2026
+  - date: "2026-01-28"
+    type: "meeting"
+  - date: "2026-03-18"
+    type: "meeting"
+  - date: "2026-05-06"
+    type: "meeting"
+  - date: "2026-06-17"
+    type: "meeting"
+  - date: "2026-07-29"
+    type: "meeting"
+  - date: "2026-09-16"
+    type: "meeting"
+  - date: "2026-11-04"
+    type: "meeting"
+  - date: "2026-12-16"
+    type: "meeting"

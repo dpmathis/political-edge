@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from collectors import federal_register, market_data, fda_calendar
 from collectors import congress, lobbying, congress_trades, regulations_gov
+from collectors import fred_macro, fomc
 from analysis import sector_mapper, impact_scorer
 
 # Configure logging
@@ -104,6 +105,43 @@ def main():
         logger.info("Congressional Trades: %d new trades", new)
     except Exception as e:
         logger.error("Congressional trades collector failed: %s", e, exc_info=True)
+
+    # 10. FRED macro data (requires API key)
+    try:
+        logger.info("--- FRED Macro Data ---")
+        new = fred_macro.collect()
+        logger.info("FRED: %d new observations", new)
+    except Exception as e:
+        logger.error("FRED collector failed: %s", e, exc_info=True)
+
+    # 11. FOMC events
+    try:
+        logger.info("--- FOMC Events ---")
+        new = fomc.collect()
+        logger.info("FOMC: %d new events", new)
+    except Exception as e:
+        logger.error("FOMC collector failed: %s", e, exc_info=True)
+
+    # 12. Macro regime classification (after FRED data)
+    try:
+        logger.info("--- Macro Regime Classification ---")
+        from analysis.macro_regime import classify_current_regime
+        result = classify_current_regime()
+        if result:
+            logger.info("Regime: Q%d %s (confidence: %s)", result["quadrant"], result["label"], result["confidence"])
+        else:
+            logger.info("Insufficient data for regime classification")
+    except Exception as e:
+        logger.error("Macro regime classification failed: %s", e, exc_info=True)
+
+    # 13. Alert engine (after all collectors)
+    try:
+        logger.info("--- Alert Engine ---")
+        from analysis.alert_engine import evaluate_and_send
+        alerts_sent = evaluate_and_send()
+        logger.info("Alerts sent: %d", alerts_sent)
+    except Exception as e:
+        logger.error("Alert engine failed: %s", e, exc_info=True)
 
     elapsed = datetime.now() - start
     logger.info("=" * 60)

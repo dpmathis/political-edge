@@ -45,9 +45,10 @@ stats = {
     "FDA Events": conn.execute("SELECT COUNT(*) FROM fda_events").fetchone()[0],
     "Lobbying Filings": conn.execute("SELECT COUNT(*) FROM lobbying_filings").fetchone()[0],
     "Congress Trades": conn.execute("SELECT COUNT(*) FROM congress_trades").fetchone()[0],
+    "Macro Indicators": conn.execute("SELECT COUNT(*) FROM macro_indicators").fetchone()[0],
+    "FOMC Events": conn.execute("SELECT COUNT(*) FROM fomc_events").fetchone()[0],
     "Market Data Points": conn.execute("SELECT COUNT(*) FROM market_data").fetchone()[0],
     "Watchlist Tickers": conn.execute("SELECT COUNT(*) FROM watchlist WHERE active = 1").fetchone()[0],
-    "Event Studies": conn.execute("SELECT COUNT(*) FROM event_studies").fetchone()[0],
 }
 conn.close()
 
@@ -109,6 +110,24 @@ with col_collect:
             from collectors import congress_trades
             trades_count = congress_trades.collect()
             st.write(f"  {trades_count} new trades")
+
+            st.write("Fetching FRED macro data...")
+            from collectors import fred_macro
+            fred_count = fred_macro.collect()
+            st.write(f"  {fred_count} new observations")
+
+            st.write("Fetching FOMC events...")
+            from collectors import fomc
+            fomc_count = fomc.collect()
+            st.write(f"  {fomc_count} new FOMC events")
+
+            st.write("Classifying macro regime...")
+            from analysis.macro_regime import classify_current_regime
+            regime = classify_current_regime()
+            if regime:
+                st.write(f"  Regime: Q{regime['quadrant']} {regime['label']} ({regime['confidence']})")
+            else:
+                st.write("  Insufficient data for classification")
 
             status.update(label="Collection complete!", state="complete")
         st.cache_data.clear()
@@ -179,6 +198,11 @@ with col_backfill:
             from collectors import lobbying as lobbying_collector
             lobby_count = lobbying_collector.backfill(start_year=bf_start.year, end_year=bf_end.year)
             st.write(f"  {lobby_count} lobbying filings")
+
+            st.write("Backfilling FRED macro data...")
+            from collectors import fred_macro
+            fred_count = fred_macro.backfill(bf_start.isoformat())
+            st.write(f"  {fred_count} FRED observations")
 
             status.update(label="Backfill complete!", state="complete")
         st.cache_data.clear()
