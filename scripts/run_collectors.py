@@ -134,7 +134,18 @@ def main():
     except Exception as e:
         logger.error("Macro regime classification failed: %s", e, exc_info=True)
 
-    # 13. Alert engine (after all collectors)
+    # 13. Signal generation (after all data is collected)
+    try:
+        logger.info("--- Signal Generator ---")
+        from analysis.signal_generator import generate_signals, review_active_signals
+        new_signals = generate_signals()
+        logger.info("Signals: %d new signals generated", len(new_signals))
+        closed = review_active_signals()
+        logger.info("Signals: %d active signals closed", closed)
+    except Exception as e:
+        logger.error("Signal generator failed: %s", e, exc_info=True)
+
+    # 14. Alert engine (after all collectors and signals)
     try:
         logger.info("--- Alert Engine ---")
         from analysis.alert_engine import evaluate_and_send

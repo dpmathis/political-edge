@@ -6,6 +6,11 @@ api_keys:
   quiver_quant: ""          # QUIVER_QUANT_API_KEY env var
   tiingo: ""                # TIINGO_API_KEY env var
   fred_api_key: ""          # FRED_API_KEY env var
+  alpaca_key_id: ""         # APCA_API_KEY_ID env var
+  alpaca_secret_key: ""     # APCA_API_SECRET_KEY env var
+
+# Safety: must be false. Paper trading only.
+live_trading_enabled: false
 
 # Collection Schedule (cron expressions)
 schedule:

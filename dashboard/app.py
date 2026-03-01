@@ -47,6 +47,7 @@ stats = {
     "Congress Trades": conn.execute("SELECT COUNT(*) FROM congress_trades").fetchone()[0],
     "Macro Indicators": conn.execute("SELECT COUNT(*) FROM macro_indicators").fetchone()[0],
     "FOMC Events": conn.execute("SELECT COUNT(*) FROM fomc_events").fetchone()[0],
+    "Trading Signals": conn.execute("SELECT COUNT(*) FROM trading_signals").fetchone()[0],
     "Market Data Points": conn.execute("SELECT COUNT(*) FROM market_data").fetchone()[0],
     "Watchlist Tickers": conn.execute("SELECT COUNT(*) FROM watchlist WHERE active = 1").fetchone()[0],
 }

@@ -19,6 +19,8 @@ def load_config() -> dict:
         "quiver_quant": "QUIVER_QUANT_API_KEY",
         "tiingo": "TIINGO_API_KEY",
         "fred_api_key": "FRED_API_KEY",
+        "alpaca_key_id": "APCA_API_KEY_ID",
+        "alpaca_secret_key": "APCA_API_SECRET_KEY",
     }
     for key, env_var in env_map.items():
         env_val = os.environ.get(env_var)
