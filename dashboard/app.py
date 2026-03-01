@@ -8,12 +8,25 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 
+from config import DB_PATH
+
 st.set_page_config(
     page_title="Political Edge",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+def _ensure_db():
+    """Auto-initialize DB if it doesn't exist (for cloud deployment)."""
+    if not os.path.exists(DB_PATH):
+        with st.spinner("Initializing database..."):
+            from scripts.setup_db import main as setup_main
+            setup_main()
+
+
+_ensure_db()
 
 st.title("Political Edge")
 st.subheader("Political & Regulatory Trading Intelligence")
@@ -33,7 +46,6 @@ Use the sidebar to navigate between pages and apply filters.
 """)
 
 # Show database stats
-from config import DB_PATH
 import sqlite3
 
 conn = sqlite3.connect(DB_PATH)
