@@ -9,6 +9,7 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from collectors import federal_register, market_data
+from collectors import congress, lobbying, regulations_gov
 from analysis import sector_mapper, impact_scorer
 
 logging.basicConfig(
@@ -59,6 +60,30 @@ def main():
     logger.info("Backfilling market data...")
     rows = market_data.collect(start_date=START_DATE, end_date=END_DATE)
     logger.info("Market data: %d rows inserted", rows)
+
+    # Congress.gov backfill (requires API key)
+    try:
+        logger.info("Backfilling Congress.gov (119th Congress)...")
+        new = congress.backfill("2025-01-03", END_DATE)
+        logger.info("Congress.gov: %d events", new)
+    except Exception as e:
+        logger.error("Congress.gov backfill failed: %s", e, exc_info=True)
+
+    # Regulations.gov backfill (requires API key)
+    try:
+        logger.info("Backfilling Regulations.gov...")
+        new = regulations_gov.backfill(START_DATE, END_DATE)
+        logger.info("Regulations.gov: %d events", new)
+    except Exception as e:
+        logger.error("Regulations.gov backfill failed: %s", e, exc_info=True)
+
+    # Lobbying backfill (2024-present)
+    try:
+        logger.info("Backfilling lobbying filings...")
+        new = lobbying.backfill(start_year=2024)
+        logger.info("Lobbying: %d filings", new)
+    except Exception as e:
+        logger.error("Lobbying backfill failed: %s", e, exc_info=True)
 
     logger.info("Backfill complete.")
 

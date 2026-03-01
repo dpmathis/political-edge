@@ -9,6 +9,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from collectors import federal_register, market_data, fda_calendar
+from collectors import congress, lobbying, congress_trades, regulations_gov
 from analysis import sector_mapper, impact_scorer
 
 # Configure logging
@@ -71,6 +72,38 @@ def main():
         logger.info("FDA events: %d extracted from regulatory events", fda_count)
     except Exception as e:
         logger.error("FDA calendar collector failed: %s", e, exc_info=True)
+
+    # 6. Congress.gov (requires API key)
+    try:
+        logger.info("--- Congress.gov ---")
+        new = congress.collect()
+        logger.info("Congress.gov: %d new events", new)
+    except Exception as e:
+        logger.error("Congress.gov collector failed: %s", e, exc_info=True)
+
+    # 7. Regulations.gov (requires API key)
+    try:
+        logger.info("--- Regulations.gov ---")
+        new = regulations_gov.collect()
+        logger.info("Regulations.gov: %d new events", new)
+    except Exception as e:
+        logger.error("Regulations.gov collector failed: %s", e, exc_info=True)
+
+    # 8. Lobbying filings
+    try:
+        logger.info("--- Lobbying Filings ---")
+        new = lobbying.collect()
+        logger.info("Lobbying: %d new filings", new)
+    except Exception as e:
+        logger.error("Lobbying collector failed: %s", e, exc_info=True)
+
+    # 9. Congressional trades
+    try:
+        logger.info("--- Congressional Trades ---")
+        new = congress_trades.collect()
+        logger.info("Congressional Trades: %d new trades", new)
+    except Exception as e:
+        logger.error("Congressional trades collector failed: %s", e, exc_info=True)
 
     elapsed = datetime.now() - start
     logger.info("=" * 60)

@@ -47,3 +47,10 @@ def load_tariff_events() -> list[dict]:
     with open(path, "r") as f:
         data = yaml.safe_load(f)
     return data.get("tariff_events", [])
+
+
+def get_api_key(key_name: str) -> str | None:
+    """Get an API key from config or env. Returns None if not configured."""
+    cfg = load_config()
+    val = cfg.get("api_keys", {}).get(key_name, "")
+    return val if val else None

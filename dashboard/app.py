@@ -43,6 +43,8 @@ conn = sqlite3.connect(DB_PATH)
 stats = {
     "Regulatory Events": conn.execute("SELECT COUNT(*) FROM regulatory_events").fetchone()[0],
     "FDA Events": conn.execute("SELECT COUNT(*) FROM fda_events").fetchone()[0],
+    "Lobbying Filings": conn.execute("SELECT COUNT(*) FROM lobbying_filings").fetchone()[0],
+    "Congress Trades": conn.execute("SELECT COUNT(*) FROM congress_trades").fetchone()[0],
     "Market Data Points": conn.execute("SELECT COUNT(*) FROM market_data").fetchone()[0],
     "Watchlist Tickers": conn.execute("SELECT COUNT(*) FROM watchlist WHERE active = 1").fetchone()[0],
     "Event Studies": conn.execute("SELECT COUNT(*) FROM event_studies").fetchone()[0],
@@ -87,6 +89,26 @@ with col_collect:
             from collectors import fda_calendar
             fda_count = fda_calendar.collect_from_regulatory_events()
             st.write(f"  {fda_count} FDA events extracted")
+
+            st.write("Fetching Congress.gov events...")
+            from collectors import congress
+            congress_count = congress.collect()
+            st.write(f"  {congress_count} new Congressional events")
+
+            st.write("Fetching Regulations.gov events...")
+            from collectors import regulations_gov
+            regsgov_count = regulations_gov.collect()
+            st.write(f"  {regsgov_count} new Regulations.gov events")
+
+            st.write("Fetching lobbying filings...")
+            from collectors import lobbying as lobbying_collector
+            lobby_count = lobbying_collector.collect()
+            st.write(f"  {lobby_count} new lobbying filings")
+
+            st.write("Fetching congressional trades...")
+            from collectors import congress_trades
+            trades_count = congress_trades.collect()
+            st.write(f"  {trades_count} new trades")
 
             status.update(label="Collection complete!", state="complete")
         st.cache_data.clear()
@@ -142,6 +164,21 @@ with col_backfill:
             from collectors import fda_calendar
             fda_count = fda_calendar.collect_from_regulatory_events()
             st.write(f"  {fda_count} FDA events extracted")
+
+            st.write("Backfilling Congress.gov...")
+            from collectors import congress
+            congress_count = congress.backfill(bf_start.isoformat(), bf_end.isoformat())
+            st.write(f"  {congress_count} Congressional events")
+
+            st.write("Backfilling Regulations.gov...")
+            from collectors import regulations_gov
+            regsgov_count = regulations_gov.backfill(bf_start.isoformat(), bf_end.isoformat())
+            st.write(f"  {regsgov_count} Regulations.gov events")
+
+            st.write("Backfilling lobbying filings...")
+            from collectors import lobbying as lobbying_collector
+            lobby_count = lobbying_collector.backfill(start_year=bf_start.year, end_year=bf_end.year)
+            st.write(f"  {lobby_count} lobbying filings")
 
             status.update(label="Backfill complete!", state="complete")
         st.cache_data.clear()
