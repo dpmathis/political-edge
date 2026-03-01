@@ -1,0 +1,35 @@
+pharma_companies:
+  - names: ["Pfizer", "PFIZER INC", "PFIZER"]
+    ticker: PFE
+  - names: ["Eli Lilly", "ELI LILLY AND COMPANY", "Lilly", "ELI LILLY"]
+    ticker: LLY
+  - names: ["Johnson & Johnson", "JOHNSON & JOHNSON", "J&J", "Janssen"]
+    ticker: JNJ
+  - names: ["Merck", "MERCK & CO", "MSD", "MERCK"]
+    ticker: MRK
+  - names: ["AbbVie", "ABBVIE INC", "ABBVIE"]
+    ticker: ABBV
+  - names: ["Bristol-Myers Squibb", "BRISTOL-MYERS SQUIBB", "BMS"]
+    ticker: BMY
+  - names: ["Amgen", "AMGEN INC", "AMGEN"]
+    ticker: AMGN
+  - names: ["Gilead", "GILEAD SCIENCES", "GILEAD"]
+    ticker: GILD
+  - names: ["Regeneron", "REGENERON PHARMACEUTICALS", "REGENERON"]
+    ticker: REGN
+  - names: ["Vertex", "VERTEX PHARMACEUTICALS", "VERTEX"]
+    ticker: VRTX
+  - names: ["Moderna", "MODERNA INC", "MODERNA"]
+    ticker: MRNA
+  - names: ["Novo Nordisk", "NOVO NORDISK"]
+    ticker: NVO
+  - names: ["AstraZeneca", "ASTRAZENECA"]
+    ticker: AZN
+  - names: ["Novartis", "NOVARTIS AG", "NOVARTIS"]
+    ticker: NVS
+  - names: ["Roche", "ROCHE HOLDING"]
+    ticker: RHHBY
+  - names: ["UnitedHealth", "UNITEDHEALTH GROUP"]
+    ticker: UNH
+  - names: ["Humana", "HUMANA"]
+    ticker: HUM

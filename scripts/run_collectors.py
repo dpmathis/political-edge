@@ -8,7 +8,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from collectors import federal_register, market_data
+from collectors import federal_register, market_data, fda_calendar
 from analysis import sector_mapper, impact_scorer
 
 # Configure logging
@@ -63,6 +63,14 @@ def main():
         logger.info("Market data: %d rows inserted", rows)
     except Exception as e:
         logger.error("Market data collector failed: %s", e, exc_info=True)
+
+    # 5. FDA events
+    try:
+        logger.info("--- FDA Events ---")
+        fda_count = fda_calendar.collect_from_regulatory_events()
+        logger.info("FDA events: %d extracted from regulatory events", fda_count)
+    except Exception as e:
+        logger.error("FDA calendar collector failed: %s", e, exc_info=True)
 
     elapsed = datetime.now() - start
     logger.info("=" * 60)

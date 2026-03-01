@@ -42,8 +42,10 @@ import sqlite3
 conn = sqlite3.connect(DB_PATH)
 stats = {
     "Regulatory Events": conn.execute("SELECT COUNT(*) FROM regulatory_events").fetchone()[0],
+    "FDA Events": conn.execute("SELECT COUNT(*) FROM fda_events").fetchone()[0],
     "Market Data Points": conn.execute("SELECT COUNT(*) FROM market_data").fetchone()[0],
     "Watchlist Tickers": conn.execute("SELECT COUNT(*) FROM watchlist WHERE active = 1").fetchone()[0],
+    "Event Studies": conn.execute("SELECT COUNT(*) FROM event_studies").fetchone()[0],
 }
 conn.close()
 
@@ -80,6 +82,11 @@ with col_collect:
             st.write("Fetching market data...")
             rows = market_data.collect()
             st.write(f"  {rows} rows inserted")
+
+            st.write("Extracting FDA events...")
+            from collectors import fda_calendar
+            fda_count = fda_calendar.collect_from_regulatory_events()
+            st.write(f"  {fda_count} FDA events extracted")
 
             status.update(label="Collection complete!", state="complete")
         st.cache_data.clear()
@@ -131,6 +138,55 @@ with col_backfill:
             )
             st.write(f"  {rows} rows inserted")
 
+            st.write("Extracting FDA events...")
+            from collectors import fda_calendar
+            fda_count = fda_calendar.collect_from_regulatory_events()
+            st.write(f"  {fda_count} FDA events extracted")
+
             status.update(label="Backfill complete!", state="complete")
         st.cache_data.clear()
         st.rerun()
+
+# --- Backtesting ---
+st.markdown("---")
+st.subheader("Backtesting")
+st.markdown("Run hypothesis backtests to validate whether political signals predict returns.")
+
+bt_col1, bt_col2 = st.columns([1, 2])
+with bt_col1:
+    study_options = ["All Studies", "tariff_sectors", "contract_awards", "fda_adcom", "high_impact_regulatory"]
+    selected_study = st.selectbox("Study", study_options)
+
+    if st.button("Run Backtest"):
+        with st.status("Running backtests...", expanded=True) as status:
+            from analysis.backtest_runner import BacktestRunner
+            runner = BacktestRunner()
+
+            if selected_study == "All Studies":
+                all_results = runner.run_all()
+                for name, result in all_results.items():
+                    result.save_to_db()
+                    st.write(f"{name}: Mean CAR {result.mean_car:+.2%} (p={result.p_value:.4f})")
+            else:
+                result = runner.run_study(selected_study)
+                result.save_to_db()
+                st.write(result.summary())
+
+            status.update(label="Backtests complete!", state="complete")
+        st.cache_data.clear()
+
+with bt_col2:
+    bt_conn = sqlite3.connect(DB_PATH)
+    recent_studies = bt_conn.execute(
+        """SELECT study_name, num_events, mean_car, p_value, win_rate, created_at
+           FROM event_studies ORDER BY created_at DESC LIMIT 10"""
+    ).fetchall()
+    bt_conn.close()
+
+    if recent_studies:
+        import pandas as pd
+        bt_df = pd.DataFrame(recent_studies, columns=["Study", "Events", "Mean CAR", "p-value", "Win Rate", "Run Date"])
+        bt_df["Mean CAR"] = bt_df["Mean CAR"].apply(lambda x: f"{x:+.2%}" if x else "")
+        bt_df["Win Rate"] = bt_df["Win Rate"].apply(lambda x: f"{x:.1%}" if x else "")
+        bt_df["p-value"] = bt_df["p-value"].apply(lambda x: f"{x:.4f}" if x else "")
+        st.dataframe(bt_df, use_container_width=True, hide_index=True)

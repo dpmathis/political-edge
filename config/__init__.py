@@ -31,3 +31,19 @@ def load_sector_mappings() -> dict[str, list[str]]:
     path = os.path.join(_CONFIG_DIR, "sector_mappings.yaml")
     with open(path, "r") as f:
         return yaml.safe_load(f)
+
+
+def load_pharma_companies() -> list[dict]:
+    """Load pharma company name → ticker mappings."""
+    path = os.path.join(_CONFIG_DIR, "pharma_companies.yaml")
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+    return data.get("pharma_companies", [])
+
+
+def load_tariff_events() -> list[dict]:
+    """Load hardcoded tariff event dates."""
+    path = os.path.join(_CONFIG_DIR, "tariff_events.yaml")
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+    return data.get("tariff_events", [])

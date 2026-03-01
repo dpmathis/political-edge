@@ -1,0 +1,37 @@
+tariff_events:
+  - date: "2018-03-01"
+    description: "Trump announces steel/aluminum tariffs"
+    affected_sectors: ["XLI", "XLB"]
+  - date: "2018-03-22"
+    description: "Section 301 tariffs on China announced ($50B)"
+    affected_sectors: ["XLK", "XLI"]
+  - date: "2018-07-06"
+    description: "First $34B China tariffs take effect"
+    affected_sectors: ["XLI", "XLK", "XLB"]
+  - date: "2018-09-24"
+    description: "$200B China tariffs take effect (10%)"
+    affected_sectors: ["XLI", "XLK", "XLB", "XLE"]
+  - date: "2019-05-10"
+    description: "China tariffs raised from 10% to 25%"
+    affected_sectors: ["XLI", "XLK", "XLB"]
+  - date: "2019-08-01"
+    description: "Trump announces additional 10% on $300B"
+    affected_sectors: ["XLI", "XLK", "XLB", "XLP"]
+  - date: "2019-08-23"
+    description: "China retaliates; tariffs escalate further"
+    affected_sectors: ["XLI", "XLK", "XLB", "XLE"]
+  - date: "2025-02-04"
+    description: "Trump executive orders on Canada/Mexico/China tariffs"
+    affected_sectors: ["XLI", "XLB", "XLE"]
+  - date: "2025-04-02"
+    description: "Liberation Day — sweeping reciprocal tariffs"
+    affected_sectors: ["XLE", "XLI", "XLB", "XLK", "XLF"]
+  - date: "2025-04-09"
+    description: "90-day pause announced (expect reversal/bounce)"
+    affected_sectors: ["XLE", "XLI", "XLB", "XLK", "XLF"]
+  - date: "2025-05-12"
+    description: "US-China Geneva trade deal — tariff reduction"
+    affected_sectors: ["XLI", "XLK"]
+  - date: "2025-07-10"
+    description: "US-UK trade deal signed"
+    affected_sectors: ["XLI"]
