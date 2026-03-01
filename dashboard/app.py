@@ -24,6 +24,18 @@ def _ensure_db():
         with st.spinner("Initializing database..."):
             from scripts.setup_db import main as setup_main
             setup_main()
+            # Create Phase 2-5 tables
+            from scripts.migrate_phase2 import main as migrate_main
+            migrate_main()
+    else:
+        # Ensure migration tables exist even if DB was created before Phase 2
+        import sqlite3
+        conn = sqlite3.connect(DB_PATH)
+        tables = set(r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall())
+        conn.close()
+        if "fda_events" not in tables or "trading_signals" not in tables:
+            from scripts.migrate_phase2 import main as migrate_main
+            migrate_main()
 
 
 _ensure_db()

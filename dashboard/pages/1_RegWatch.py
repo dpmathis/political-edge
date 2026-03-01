@@ -19,7 +19,6 @@ from dashboard.components.event_card import (
 )
 from dashboard.components.price_chart import render_price_chart
 
-st.set_page_config(page_title="RegWatch — Political Edge", page_icon="📋", layout="wide")
 st.title("RegWatch")
 st.caption("Regulatory & political event feed with sector mapping")
 
@@ -128,7 +127,7 @@ else:
         ["publication_date", "event_type", "agency", "title", "sectors", "tickers", "impact_score", "trade_action"]
     ].copy()
     display_df["event_type"] = display_df["event_type"].apply(format_event_type)
-    display_df["title"] = display_df["title"].str[:100]
+    display_df["title"] = display_df["title"].apply(lambda x: str(x)[:100] if x else "")
     display_df.columns = ["Date", "Type", "Agency", "Title", "Sectors", "Tickers", "Impact", "Action"]
 
     # Sortable table
@@ -146,7 +145,7 @@ else:
     st.subheader("Event Detail")
 
     event_options = [
-        f"{row['publication_date']} | {row['agency'][:30]} | {row['title'][:60]}..."
+        f"{row['publication_date']} | {str(row.get('agency', ''))[:30]} | {str(row.get('title', ''))[:60]}..."
         for _, row in events_df.head(50).iterrows()
     ]
 

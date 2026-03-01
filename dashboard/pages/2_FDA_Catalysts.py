@@ -15,7 +15,6 @@ import streamlit as st
 
 from config import DB_PATH
 
-st.set_page_config(page_title="FDA Catalysts — Political Edge", page_icon="💊", layout="wide")
 st.title("FDA Catalysts")
 st.caption("FDA advisory committee votes, approvals, and event study results")
 

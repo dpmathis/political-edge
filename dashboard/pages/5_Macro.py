@@ -15,7 +15,6 @@ import streamlit as st
 
 from config import DB_PATH
 
-st.set_page_config(page_title="Macro & Fed — Political Edge", page_icon="📊", layout="wide")
 st.title("Macro & Fed Dashboard")
 st.caption("Hedgeye-style regime classifier, key economic indicators, and FOMC tracker")
 

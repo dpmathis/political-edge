@@ -15,7 +15,6 @@ import streamlit as st
 
 from config import DB_PATH
 
-st.set_page_config(page_title="Signals — Political Edge", page_icon="📈", layout="wide")
 st.title("Signals & Paper Trading")
 st.caption("Trading signal management and paper portfolio tracking")
 

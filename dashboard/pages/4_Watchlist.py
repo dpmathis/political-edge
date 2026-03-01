@@ -14,7 +14,6 @@ import streamlit as st
 from config import DB_PATH
 from dashboard.components.price_chart import render_price_chart
 
-st.set_page_config(page_title="Watchlist — Political Edge", page_icon="📊", layout="wide")
 st.title("Watchlist")
 st.caption("Combined per-ticker view across all data sources")
 
