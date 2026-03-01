@@ -44,10 +44,18 @@ def _build_client_ticker_lookup(conn: sqlite3.Connection) -> dict[str, str]:
 
 
 def _match_client_ticker(client_name: str, lookup: dict[str, str]) -> str | None:
-    """Find a matching ticker for a lobbying client via substring match."""
+    """Find a matching ticker for a lobbying client via substring match.
+
+    Requires the matching name to be at least 5 chars to avoid false positives
+    like 'META' matching 'METALS'.
+    """
     client_lower = client_name.lower()
     for name, ticker in lookup.items():
-        if name in client_lower or client_lower in name:
+        if len(name) < 5:
+            # Short names require exact match (avoid 'meta' in 'metals')
+            if client_lower == name:
+                return ticker
+        elif name in client_lower or client_lower in name:
             return ticker
     return None
 

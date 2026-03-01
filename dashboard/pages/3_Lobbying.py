@@ -22,95 +22,97 @@ conn = sqlite3.connect(DB_PATH)
 # --- KPI ROW ---
 total_filings = conn.execute("SELECT COUNT(*) FROM lobbying_filings").fetchone()[0]
 total_spend = conn.execute(
-    "SELECT COALESCE(SUM(amount), 0) FROM lobbying_filings WHERE client_ticker IS NOT NULL"
+    "SELECT COALESCE(SUM(amount), 0) FROM lobbying_filings"
 ).fetchone()[0]
-tickers_with_filings = conn.execute(
-    "SELECT COUNT(DISTINCT client_ticker) FROM lobbying_filings WHERE client_ticker IS NOT NULL"
+unique_clients = conn.execute(
+    "SELECT COUNT(DISTINCT client_name) FROM lobbying_filings"
 ).fetchone()[0]
-
-# Calculate average spend per company
-avg_spend = total_spend / tickers_with_filings if tickers_with_filings > 0 else 0
+unique_registrants = conn.execute(
+    "SELECT COUNT(DISTINCT registrant_name) FROM lobbying_filings"
+).fetchone()[0]
 
 kpi_cols = st.columns(4)
 with kpi_cols[0]:
     st.metric("Total Filings", f"{total_filings:,}")
 with kpi_cols[1]:
-    st.metric("Watchlist Spend", f"${total_spend:,.0f}")
+    st.metric("Total Spend", f"${total_spend:,.0f}")
 with kpi_cols[2]:
-    st.metric("Companies Tracked", tickers_with_filings)
+    st.metric("Unique Clients", f"{unique_clients:,}")
 with kpi_cols[3]:
-    st.metric("Avg Spend/Company", f"${avg_spend:,.0f}")
+    st.metric("Lobbying Firms", f"{unique_registrants:,}")
 
 # --- SPEND OVER TIME + QOQ HEATMAP ---
 st.markdown("---")
 
-spend_df = pd.read_sql_query(
-    """SELECT client_ticker, client_name, filing_year, filing_period, SUM(amount) as total_spend
+# Top spenders
+top_spenders = pd.read_sql_query(
+    """SELECT client_name, SUM(amount) as total_spend, COUNT(*) as filings
        FROM lobbying_filings
-       WHERE client_ticker IS NOT NULL AND amount IS NOT NULL
-       GROUP BY client_ticker, filing_year, filing_period
-       ORDER BY filing_year, filing_period""",
+       WHERE amount IS NOT NULL AND amount > 0
+       GROUP BY client_name
+       ORDER BY total_spend DESC
+       LIMIT 20""",
     conn,
 )
 
-if not spend_df.empty:
-    spend_df["period_label"] = spend_df["filing_year"].astype(str) + " " + spend_df["filing_period"].fillna("")
-
-    col_chart, col_heat = st.columns(2)
+if not top_spenders.empty:
+    col_chart, col_period = st.columns(2)
 
     with col_chart:
-        st.subheader("Spending Over Time")
-        tickers_available = sorted(spend_df["client_ticker"].unique().tolist())
-        selected_tickers = st.multiselect(
-            "Select companies", tickers_available, default=tickers_available[:5], key="lobby_tickers"
+        st.subheader("Top Spenders")
+        fig = px.bar(
+            top_spenders.head(15),
+            x="total_spend",
+            y="client_name",
+            orientation="h",
+            color="total_spend",
+            color_continuous_scale="Blues",
         )
-        if selected_tickers:
-            chart_df = spend_df[spend_df["client_ticker"].isin(selected_tickers)]
-            fig = px.line(
-                chart_df,
+        fig.update_layout(
+            height=400,
+            margin=dict(l=10, r=10, t=10, b=10),
+            xaxis_title="Total Spend ($)",
+            yaxis_title="",
+            yaxis=dict(autorange="reversed"),
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col_period:
+        st.subheader("Spending by Period")
+        period_spend = pd.read_sql_query(
+            """SELECT filing_year, filing_period, SUM(amount) as total_spend, COUNT(*) as filings
+               FROM lobbying_filings
+               WHERE amount IS NOT NULL
+               GROUP BY filing_year, filing_period
+               ORDER BY filing_year, filing_period""",
+            conn,
+        )
+        if not period_spend.empty:
+            period_spend["period_label"] = (
+                period_spend["filing_year"].astype(str) + " " + period_spend["filing_period"].fillna("")
+            )
+            fig = px.bar(
+                period_spend,
                 x="period_label",
                 y="total_spend",
-                color="client_ticker",
-                markers=True,
+                text="filings",
+                color="total_spend",
+                color_continuous_scale="Blues",
             )
             fig.update_layout(
-                height=350,
-                margin=dict(l=40, r=40, t=10, b=40),
-                yaxis_title="Total Spend ($)",
+                height=400,
+                margin=dict(l=10, r=10, t=10, b=10),
                 xaxis_title="Period",
+                yaxis_title="Total Spend ($)",
+                showlegend=False,
             )
+            fig.update_traces(texttemplate="%{text} filings", textposition="outside")
             st.plotly_chart(fig, use_container_width=True)
-
-    with col_heat:
-        st.subheader("QoQ Change Heatmap")
-
-        # Calculate QoQ changes
-        pivot = spend_df.pivot_table(index="client_ticker", columns="period_label", values="total_spend")
-        if pivot.shape[1] >= 2:
-            pct_change = pivot.pct_change(axis=1) * 100
-            pct_change = pct_change.iloc[:, 1:]  # Drop first column (NaN)
-
-            if not pct_change.empty:
-                fig = go.Figure(
-                    data=go.Heatmap(
-                        z=pct_change.values,
-                        x=pct_change.columns.tolist(),
-                        y=pct_change.index.tolist(),
-                        colorscale=[[0, "#22c55e"], [0.5, "#f5f5f5"], [1, "#ef4444"]],
-                        zmid=0,
-                        text=[[f"{v:.0f}%" if pd.notna(v) else "" for v in row] for row in pct_change.values],
-                        texttemplate="%{text}",
-                        hovertemplate="Ticker: %{y}<br>Period: %{x}<br>Change: %{z:.1f}%<extra></extra>",
-                    )
-                )
-                fig.update_layout(height=350, margin=dict(l=40, r=40, t=10, b=40))
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Not enough data for QoQ comparison.")
         else:
-            st.info("Need at least 2 periods for QoQ comparison.")
+            st.info("No spending data by period.")
 else:
-    st.info("No lobbying filings with ticker mappings found. Run collectors to populate.")
+    st.info("No lobbying filings found. Run collectors to populate.")
 
 # --- FILINGS TABLE ---
 st.markdown("---")

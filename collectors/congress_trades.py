@@ -1,7 +1,6 @@
 """Congressional trading collector via Capitol Trades.
 
 Scrapes publicly available trading data from capitoltrades.com.
-Minimal collector — downweighted per hypothesis validation.
 
 Usage:
     from collectors import congress_trades
@@ -12,7 +11,6 @@ import logging
 import re
 import sqlite3
 import time
-from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -24,7 +22,10 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://www.capitoltrades.com/trades"
 RATE_LIMIT_DELAY = 3.0
 MAX_PAGES_PER_RUN = 10
-USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 
 
 def _fetch_page(page_num: int) -> BeautifulSoup | None:
@@ -36,7 +37,7 @@ def _fetch_page(page_num: int) -> BeautifulSoup | None:
         try:
             resp = requests.get(url, headers=headers, timeout=30)
             if resp.status_code == 403:
-                logger.warning("Capitol Trades returned 403 (blocked). Site may require JS rendering.")
+                logger.warning("Capitol Trades returned 403 (blocked).")
                 return None
             if resp.status_code == 429:
                 wait = 2 ** (attempt + 1)
@@ -46,7 +47,7 @@ def _fetch_page(page_num: int) -> BeautifulSoup | None:
             resp.raise_for_status()
             return BeautifulSoup(resp.text, "lxml")
         except requests.exceptions.RequestException as e:
-            logger.error("Request error fetching page %d: %s (attempt %d)", page_num, e, attempt + 1)
+            logger.error("Request error page %d: %s (attempt %d)", page_num, e, attempt + 1)
             if attempt < 2:
                 time.sleep(2 ** (attempt + 1))
                 continue
@@ -54,200 +55,103 @@ def _fetch_page(page_num: int) -> BeautifulSoup | None:
     return None
 
 
-def _normalize_date(text: str) -> str | None:
-    """Parse various date formats to YYYY-MM-DD."""
-    text = text.strip()
-    for fmt in ("%b %d, %Y", "%m/%d/%Y", "%Y-%m-%d", "%B %d, %Y"):
+def _parse_date_cell(text: str) -> str | None:
+    """Parse Capitol Trades date like '27 Feb | 2026' or '4 Feb | 2026'."""
+    text = text.replace("|", "").strip()
+    # Try multiple formats
+    for fmt in ("%d %b %Y", "%b %d, %Y", "%m/%d/%Y", "%Y-%m-%d"):
         try:
+            from datetime import datetime
             return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
     return None
 
 
+def _extract_ticker(text: str) -> str | None:
+    """Extract ticker from issuer cell like 'VMware Inc | VMW:US'."""
+    # Look for TICKER:EXCHANGE pattern
+    match = re.search(r"([A-Z]{1,5}):[A-Z]{2}", text)
+    if match:
+        return match.group(1)
+    return None
+
+
 def _parse_trades_table(soup: BeautifulSoup) -> list[dict]:
-    """Extract trade rows from Capitol Trades HTML."""
+    """Extract trade rows from Capitol Trades HTML table."""
     trades = []
 
-    # Capitol Trades uses a table with trade data
-    # Try multiple selectors since the site structure may vary
     table = soup.select_one("table")
     if not table:
-        # Try card-based layout
-        rows = soup.select("[class*='trade'], [class*='Trade'], .q-tr")
-        if not rows:
-            return trades
-
-        for row in rows:
-            trade = _parse_card_row(row)
-            if trade:
-                trades.append(trade)
         return trades
 
-    # Parse table rows
     tbody = table.select_one("tbody")
     if not tbody:
         return trades
 
     for tr in tbody.select("tr"):
         cells = tr.select("td")
-        if len(cells) < 5:
+        if len(cells) < 8:
             continue
 
-        trade = _parse_table_row(cells, tr)
-        if trade:
-            trades.append(trade)
+        try:
+            # Cell 0: Politician | Party | Chamber | State
+            cell0_text = cells[0].get_text(separator="|", strip=True)
+            parts = [p.strip() for p in cell0_text.split("|")]
+            politician_link = cells[0].select_one("a")
+            politician = politician_link.get_text(strip=True) if politician_link else (parts[0] if parts else None)
+
+            party = None
+            chamber = None
+            for p in parts[1:]:
+                if p in ("Democrat", "Republican", "Independent"):
+                    party = p[0]  # D, R, I
+                elif p in ("House", "Senate"):
+                    chamber = p
+
+            # Cell 1: Company Name | TICKER:EXCHANGE
+            cell1_text = cells[1].get_text(separator="|", strip=True)
+            ticker = _extract_ticker(cell1_text)
+            asset_description = cells[1].select_one("a")
+            asset_desc = asset_description.get_text(strip=True) if asset_description else None
+
+            # Cell 2: Published date (disclosure date)
+            disclosure_date = _parse_date_cell(cells[2].get_text(strip=True))
+
+            # Cell 3: Traded date
+            trade_date = _parse_date_cell(cells[3].get_text(strip=True))
+
+            # Cell 5: Owner (Self, Spouse, Joint, Undisclosed, Child)
+            # Cell 6: Type (buy, sell, exchange)
+            trade_type_text = cells[6].get_text(strip=True).lower()
+            trade_type = "buy" if trade_type_text in ("buy", "purchase") else "sell" if "sell" in trade_type_text or "sale" in trade_type_text else trade_type_text
+
+            # Cell 7: Size (amount range like "1K–15K")
+            amount_range = cells[7].get_text(strip=True)
+            if amount_range and amount_range != "N/A":
+                amount_range = "$" + amount_range.replace("–", " – $")
+            else:
+                amount_range = None
+
+            if not politician:
+                continue
+
+            trades.append({
+                "politician": politician,
+                "party": party,
+                "chamber": chamber,
+                "ticker": ticker,
+                "trade_type": trade_type,
+                "amount_range": amount_range,
+                "trade_date": trade_date,
+                "disclosure_date": disclosure_date,
+                "asset_description": asset_desc,
+            })
+        except Exception as e:
+            logger.debug("Error parsing row: %s", e)
+            continue
 
     return trades
-
-
-def _parse_table_row(cells: list, tr) -> dict | None:
-    """Parse a table row into a trade dict."""
-    try:
-        texts = [c.get_text(strip=True) for c in cells]
-
-        # Look for politician name, ticker, and trade type in any order
-        politician = None
-        party = None
-        chamber = None
-        ticker = None
-        trade_type = None
-        amount_range = None
-        trade_date = None
-        disclosure_date = None
-        asset_desc = None
-
-        for i, text in enumerate(texts):
-            # Detect ticker (usually 1-5 uppercase letters)
-            ticker_match = re.match(r"^[A-Z]{1,5}$", text)
-            if ticker_match and not ticker:
-                ticker = text
-                continue
-
-            # Detect trade type
-            if text.lower() in ("purchase", "buy", "sale", "sale (partial)", "sale (full)", "exchange"):
-                trade_type = "buy" if text.lower() in ("purchase", "buy") else "sell"
-                continue
-
-            # Detect amount range ($X - $Y)
-            if "$" in text and not amount_range:
-                amount_range = text
-                continue
-
-            # Detect date
-            date_val = _normalize_date(text)
-            if date_val:
-                if not trade_date:
-                    trade_date = date_val
-                elif not disclosure_date:
-                    disclosure_date = date_val
-                continue
-
-            # Detect party
-            if text in ("R", "D", "I", "Republican", "Democrat", "Independent"):
-                party = text[0] if len(text) > 1 else text
-                continue
-
-            # Detect chamber
-            if text.lower() in ("house", "senate", "representative", "senator"):
-                chamber = "House" if text.lower() in ("house", "representative") else "Senate"
-                continue
-
-            # First unmatched long text is likely the politician name
-            if not politician and len(text) > 3 and not text.startswith("$"):
-                politician = text
-
-        # Also check for links with ticker data
-        if not ticker:
-            ticker_link = tr.select_one("a[href*='/stocks/'], a[href*='ticker']")
-            if ticker_link:
-                ticker = ticker_link.get_text(strip=True).upper()
-
-        if not politician:
-            name_link = tr.select_one("a[href*='/politicians/'], a[href*='/trader/']")
-            if name_link:
-                politician = name_link.get_text(strip=True)
-
-        if not ticker or not politician:
-            return None
-
-        return {
-            "politician": politician,
-            "party": party,
-            "chamber": chamber,
-            "ticker": ticker,
-            "trade_type": trade_type or "unknown",
-            "amount_range": amount_range,
-            "trade_date": trade_date,
-            "disclosure_date": disclosure_date,
-            "asset_description": asset_desc,
-        }
-    except Exception as e:
-        logger.debug("Error parsing table row: %s", e)
-        return None
-
-
-def _parse_card_row(element) -> dict | None:
-    """Parse a card-style trade element."""
-    try:
-        text = element.get_text(separator=" ", strip=True)
-        if len(text) < 10:
-            return None
-
-        # Try to extract structured data from links and spans
-        politician = None
-        ticker = None
-        trade_type = None
-
-        name_el = element.select_one("a[href*='/politicians/'], a[href*='/trader/'], .politician-name")
-        if name_el:
-            politician = name_el.get_text(strip=True)
-
-        ticker_el = element.select_one("a[href*='/stocks/'], .ticker, .q-field--issuer")
-        if ticker_el:
-            ticker_text = ticker_el.get_text(strip=True)
-            ticker_match = re.search(r"[A-Z]{1,5}", ticker_text)
-            if ticker_match:
-                ticker = ticker_match.group()
-
-        if not politician or not ticker:
-            return None
-
-        # Extract other fields from text
-        trade_type_match = re.search(r"\b(purchase|buy|sale|sell|exchange)\b", text, re.IGNORECASE)
-        if trade_type_match:
-            t = trade_type_match.group().lower()
-            trade_type = "buy" if t in ("purchase", "buy") else "sell"
-
-        amount_match = re.search(r"(\$[\d,]+ ?- ?\$[\d,]+)", text)
-        amount_range = amount_match.group(1) if amount_match else None
-
-        date_match = re.search(r"(\w+ \d{1,2}, \d{4})", text)
-        trade_date = _normalize_date(date_match.group(1)) if date_match else None
-
-        party_match = re.search(r"\b([RDI])\b", text)
-        party = party_match.group(1) if party_match else None
-
-        chamber_match = re.search(r"\b(House|Senate|Representative|Senator)\b", text, re.IGNORECASE)
-        chamber = None
-        if chamber_match:
-            c = chamber_match.group().lower()
-            chamber = "House" if c in ("house", "representative") else "Senate"
-
-        return {
-            "politician": politician,
-            "party": party,
-            "chamber": chamber,
-            "ticker": ticker,
-            "trade_type": trade_type or "unknown",
-            "amount_range": amount_range,
-            "trade_date": trade_date,
-            "disclosure_date": None,
-            "asset_description": None,
-        }
-    except Exception as e:
-        logger.debug("Error parsing card row: %s", e)
-        return None
 
 
 def _trade_exists(conn: sqlite3.Connection, trade: dict) -> bool:
@@ -264,6 +168,8 @@ def _insert_trades(conn: sqlite3.Connection, trades: list[dict]) -> int:
     """Insert trades, checking for duplicates first."""
     inserted = 0
     for trade in trades:
+        if not trade["politician"] or not trade["ticker"]:
+            continue
         if trade["trade_date"] and _trade_exists(conn, trade):
             continue
         try:
@@ -309,8 +215,7 @@ def collect() -> int:
             if page_num == 1:
                 logger.warning(
                     "Failed to fetch Capitol Trades page 1. "
-                    "Site may use JS rendering or block scraping. "
-                    "Consider Quiver Quantitative API ($25/mo) as fallback."
+                    "Site may block scraping."
                 )
             break
 
