@@ -18,6 +18,9 @@ from config import DB_PATH
 st.title("Macro & Fed Dashboard")
 st.caption("Hedgeye-style regime classifier, key economic indicators, and FOMC tracker")
 
+from dashboard.components.freshness import render_freshness
+render_freshness("macro_indicators", "date", "Macro Data")
+
 QUADRANT_COLORS = {1: "#2ecc71", 2: "#f1c40f", 3: "#e67e22", 4: "#e74c3c"}
 QUADRANT_LABELS = {1: "Goldilocks", 2: "Reflation", 3: "Stagflation", 4: "Deflation"}
 

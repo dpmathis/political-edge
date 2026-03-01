@@ -17,6 +17,9 @@ from config import DB_PATH
 st.title("Lobbying Activity")
 st.caption("Lobbying disclosure filings with QoQ spending analysis")
 
+from dashboard.components.freshness import render_freshness
+render_freshness("lobbying_filings", "filing_year", "Lobbying Filings")
+
 conn = sqlite3.connect(DB_PATH)
 
 # --- KPI ROW ---

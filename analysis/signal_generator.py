@@ -14,6 +14,8 @@ import logging
 import sqlite3
 from datetime import date
 
+import pandas as pd
+
 from config import DB_PATH
 
 logger = logging.getLogger(__name__)
@@ -77,6 +79,20 @@ SIGNAL_RULES = {
         "trigger_sql": None,  # Custom check handled in code
         "default_direction": "watch",
         "base_conviction": "medium",
+    },
+    "eo_signal": {
+        "description": "Executive order with statistically significant sector impact",
+        "source_table": "regulatory_events",
+        "trigger_sql": None,  # Custom — uses eo_classifier.py
+        "default_direction": "long",
+        "base_conviction": "high",
+    },
+    "reg_shock": {
+        "description": "Abnormal surge in regulatory activity from specific agency",
+        "source_table": "regulatory_events",
+        "trigger_sql": None,  # Custom — uses reg_shock_detector.py
+        "default_direction": "long",
+        "base_conviction": "high",
     },
 }
 
@@ -309,6 +325,96 @@ def _generate_lobbying_signals(conn: sqlite3.Connection, macro_modifier: float, 
     return signals
 
 
+def _generate_eo_signals(conn: sqlite3.Connection, macro_modifier: float, macro_quadrant: int | None) -> list[dict]:
+    """Generate signals from recent executive orders using topic classification."""
+    signals = []
+
+    try:
+        from analysis.eo_classifier import classify_eo
+    except ImportError:
+        logger.error("Failed to import eo_classifier")
+        return signals
+
+    rows = conn.execute(
+        """SELECT id, publication_date, title
+           FROM regulatory_events
+           WHERE event_type = 'executive_order'
+             AND publication_date >= date('now', '-2 days')
+           ORDER BY publication_date DESC"""
+    ).fetchall()
+
+    for row_id, pub_date, title in rows:
+        classification = classify_eo(title)
+
+        if not classification["is_tradeable"]:
+            continue
+
+        topic = classification["topic"]
+        for ticker in classification["tickers"]:
+            signal_type = f"eo_{topic}"
+            if _has_recent_signal(conn, ticker, signal_type, days=3):
+                continue
+
+            rationale = (
+                f"Executive Order: {title[:100]}. "
+                f"Topic: {topic.replace('_', ' ').title()}. "
+                f"Expected CAR: {classification['expected_car']:+.2%} over 3 days "
+                f"(N={classification.get('sample_size', '?')})."
+            )
+
+            signals.append({
+                "ticker": ticker,
+                "signal_type": signal_type,
+                "direction": classification["direction"],
+                "conviction": classification["confidence"],
+                "source_event_id": row_id,
+                "source_table": "regulatory_events",
+                "rationale": rationale,
+                "macro_regime_at_signal": macro_quadrant,
+                "position_size_modifier": macro_modifier,
+            })
+
+    return signals
+
+
+def _generate_reg_shock_signals(conn: sqlite3.Connection, macro_modifier: float, macro_quadrant: int | None) -> list[dict]:
+    """Generate signals from regulatory intensity shocks by agency."""
+    signals = []
+
+    try:
+        from analysis.reg_shock_detector import detect_shocks
+    except ImportError:
+        logger.error("Failed to import reg_shock_detector")
+        return signals
+
+    shocks = detect_shocks(lookback_weeks=1, conn=conn)
+
+    for shock in shocks:
+        for ticker in shock["tickers"]:
+            if _has_recent_signal(conn, ticker, "reg_shock", days=7):
+                continue
+
+            rationale = (
+                f"Regulatory intensity shock: {shock['agency'][:60]}. "
+                f"Weekly count: {shock['count']} (z-score: {shock['z_score']:.1f}). "
+                f"Expected CAR: {shock['expected_car']:+.2%} over {shock['hold_days']} days."
+            )
+
+            signals.append({
+                "ticker": ticker,
+                "signal_type": "reg_shock",
+                "direction": shock["direction"],
+                "conviction": shock["confidence"],
+                "source_event_id": None,
+                "source_table": "regulatory_events",
+                "rationale": rationale,
+                "macro_regime_at_signal": macro_quadrant,
+                "position_size_modifier": macro_modifier,
+            })
+
+    return signals
+
+
 def generate_signals() -> list[dict]:
     """Evaluate all signal rules and generate new trading signals.
 
@@ -327,6 +433,8 @@ def generate_signals() -> list[dict]:
         ("contract_momentum", _generate_contract_signals),
         ("regulatory_event", _generate_regulatory_signals),
         ("lobbying_spike", _generate_lobbying_signals),
+        ("eo_signal", _generate_eo_signals),
+        ("reg_shock", _generate_reg_shock_signals),
     ]
 
     for name, gen_func in generators:

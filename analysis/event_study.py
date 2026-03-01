@@ -155,6 +155,16 @@ class EventStudy:
             EventStudyResults with aggregate stats and per-event details.
         """
         benchmark = benchmark or self.benchmark_ticker
+        # Deduplicate events on (date, ticker) — keeps first occurrence
+        seen = set()
+        unique_events = []
+        for e in events:
+            key = (e["date"], e["ticker"])
+            if key not in seen:
+                seen.add(key)
+                unique_events.append(e)
+        events = unique_events
+
         logger.info(
             "Running event study '%s': %d events, window [-%d, +%d], method=%s, benchmark=%s",
             study_name, len(events), window_pre, window_post, method, benchmark,

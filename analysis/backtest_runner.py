@@ -119,10 +119,15 @@ class BacktestRunner:
         conn.close()
 
         events = []
+        seen = set()
         for pub_date, tickers, title in rows:
-            first_ticker = tickers.split(",")[0].strip()
-            if first_ticker:
-                events.append({"date": pub_date, "ticker": first_ticker, "label": title[:100]})
+            for ticker in tickers.split(","):
+                ticker = ticker.strip()
+                if ticker:
+                    key = (pub_date, ticker)
+                    if key not in seen:
+                        seen.add(key)
+                        events.append({"date": pub_date, "ticker": ticker, "label": title[:100]})
 
         return self.event_study.run(
             events=events,
@@ -188,9 +193,20 @@ class BacktestRunner:
 
         events = []
         for pub_date, tickers, title in rows:
-            first_ticker = tickers.split(",")[0].strip()
-            if first_ticker:
-                events.append({"date": pub_date, "ticker": first_ticker, "label": title[:100]})
+            for ticker in tickers.split(","):
+                ticker = ticker.strip()
+                if ticker:
+                    events.append({"date": pub_date, "ticker": ticker, "label": title[:100]})
+
+        # Deduplicate on (date, ticker) — multiple events on same day with same ticker
+        seen = set()
+        unique_events = []
+        for e in events:
+            key = (e["date"], e["ticker"])
+            if key not in seen:
+                seen.add(key)
+                unique_events.append(e)
+        events = unique_events
 
         return self.event_study.run(
             events=events,

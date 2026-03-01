@@ -18,6 +18,9 @@ from config import DB_PATH
 st.title("FDA Catalysts")
 st.caption("FDA advisory committee votes, approvals, and event study results")
 
+from dashboard.components.freshness import render_freshness
+render_freshness("fda_events", "event_date", "FDA Events")
+
 conn = sqlite3.connect(DB_PATH)
 
 # --- KPI ROW ---

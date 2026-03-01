@@ -22,6 +22,9 @@ from dashboard.components.price_chart import render_price_chart
 st.title("RegWatch")
 st.caption("Regulatory & political event feed with sector mapping")
 
+from dashboard.components.freshness import render_freshness
+render_freshness("regulatory_events", "publication_date", "Regulatory Events")
+
 # Sidebar filters
 filters = render_sidebar_filters()
 

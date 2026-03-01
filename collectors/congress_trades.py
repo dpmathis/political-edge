@@ -56,9 +56,15 @@ def _fetch_page(page_num: int) -> BeautifulSoup | None:
 
 
 def _parse_date_cell(text: str) -> str | None:
-    """Parse Capitol Trades date like '27 Feb | 2026' or '4 Feb | 2026'."""
-    text = text.replace("|", "").strip()
-    # Try multiple formats
+    """Parse Capitol Trades date like '27 Feb2026' or '27 Feb | 2026'.
+
+    get_text(strip=True) often drops the separator between day/month and year,
+    producing '27 Feb2026'. We normalize by inserting a space before the 4-digit year.
+    """
+    text = text.replace("|", " ").strip()
+    # Insert space before 4-digit year if missing (e.g. "27 Feb2026" -> "27 Feb 2026")
+    text = re.sub(r"(\d{4})", r" \1", text)
+    text = " ".join(text.split())  # collapse multiple spaces
     for fmt in ("%d %b %Y", "%b %d, %Y", "%m/%d/%Y", "%Y-%m-%d"):
         try:
             from datetime import datetime

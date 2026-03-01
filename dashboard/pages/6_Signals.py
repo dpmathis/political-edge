@@ -18,6 +18,9 @@ from config import DB_PATH
 st.title("Signals & Paper Trading")
 st.caption("Trading signal management and paper portfolio tracking")
 
+from dashboard.components.freshness import render_freshness
+render_freshness("trading_signals", "signal_date", "Trading Signals")
+
 
 @st.cache_data(ttl=60)
 def load_signals(status_filter: str | None = None) -> pd.DataFrame:

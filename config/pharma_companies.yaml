@@ -33,3 +33,43 @@ pharma_companies:
     ticker: UNH
   - names: ["Humana", "HUMANA"]
     ticker: HUM
+  - names: ["Biogen", "BIOGEN INC", "BIOGEN"]
+    ticker: BIIB
+  - names: ["Alexion", "ALEXION PHARMACEUTICALS"]
+    ticker: AZN
+  - names: ["Sanofi", "SANOFI", "SANOFI-AVENTIS"]
+    ticker: SNY
+  - names: ["GSK", "GLAXOSMITHKLINE", "GlaxoSmithKline"]
+    ticker: GSK
+  - names: ["Bayer", "BAYER", "BAYER HEALTHCARE"]
+    ticker: BAYRY
+  - names: ["Takeda", "TAKEDA PHARMACEUTICAL", "TAKEDA"]
+    ticker: TAK
+  - names: ["Daiichi Sankyo", "DAIICHI SANKYO"]
+    ticker: DSNKY
+  - names: ["Incyte", "INCYTE CORPORATION", "INCYTE"]
+    ticker: INCY
+  - names: ["BioMarin", "BIOMARIN PHARMACEUTICAL", "BIOMARIN"]
+    ticker: BMRN
+  - names: ["Alnylam", "ALNYLAM PHARMACEUTICALS", "ALNYLAM"]
+    ticker: ALNY
+  - names: ["Neurocrine", "NEUROCRINE BIOSCIENCES"]
+    ticker: NBIX
+  - names: ["Seagen", "SEAGEN INC"]
+    ticker: PFE
+  - names: ["Illumina", "ILLUMINA INC", "ILLUMINA"]
+    ticker: ILMN
+  - names: ["Exact Sciences", "EXACT SCIENCES"]
+    ticker: EXAS
+  - names: ["Jazz Pharmaceuticals", "JAZZ PHARMACEUTICALS", "JAZZ"]
+    ticker: JAZZ
+  - names: ["Horizon Therapeutics", "HORIZON THERAPEUTICS"]
+    ticker: AMGN
+  - names: ["Ultragenyx", "ULTRAGENYX PHARMACEUTICAL"]
+    ticker: RARE
+  - names: ["Sarepta", "SAREPTA THERAPEUTICS"]
+    ticker: SRPT
+  - names: ["BioNTech", "BIONTECH", "BIONTECH SE"]
+    ticker: BNTX
+  - names: ["Catalent", "CATALENT INC"]
+    ticker: CTLT
