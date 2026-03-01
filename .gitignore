@@ -4,8 +4,9 @@ __pycache__/
 *.egg-info/
 .venv/
 
-# Data (local DB and logs)
+# Data (local DB and logs — seed.db.gz is tracked for cloud deploy)
 data/political_edge.db
+data/political_edge.db.gz
 data/collector.log
 
 # Config with secrets

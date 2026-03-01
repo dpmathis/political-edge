@@ -6,6 +6,8 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import gzip
+import shutil
 import sqlite3
 from datetime import date, timedelta
 
@@ -20,23 +22,41 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Database Bootstrap ────────────────────────────────────────────────
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SEED_DB_GZ = os.path.join(_PROJECT_ROOT, "data", "seed.db.gz")
+
 
 def _ensure_db():
-    """Auto-initialize DB if it doesn't exist (for cloud deployment)."""
-    if not os.path.exists(DB_PATH):
-        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-        with st.spinner("Initializing database for first time..."):
-            from scripts.setup_db import main as setup_main
-            setup_main()
-            from scripts.migrate_phase2 import main as migrate_main
-            migrate_main()
-    else:
+    """Auto-initialize DB: decompress seed if available, else create empty."""
+    if os.path.exists(DB_PATH):
+        # Ensure all tables exist
         conn = sqlite3.connect(DB_PATH)
-        tables = set(r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall())
+        tables = set(r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall())
         conn.close()
         if "fda_events" not in tables or "trading_signals" not in tables:
             from scripts.migrate_phase2 import main as migrate_main
             migrate_main()
+        return
+
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
+    # Try to decompress seed database (ships with repo for cloud deploy)
+    if os.path.exists(_SEED_DB_GZ):
+        with st.spinner("Loading pre-populated database..."):
+            with gzip.open(_SEED_DB_GZ, "rb") as f_in:
+                with open(DB_PATH, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+        return
+
+    # Fallback: create empty database
+    with st.spinner("Initializing empty database..."):
+        from scripts.setup_db import main as setup_main
+        setup_main()
+        from scripts.migrate_phase2 import main as migrate_main
+        migrate_main()
 
 
 _ensure_db()
@@ -59,8 +79,8 @@ stats = {
     "Macro Indicators": conn.execute("SELECT COUNT(*) FROM macro_indicators").fetchone()[0],
     "FOMC Events": conn.execute("SELECT COUNT(*) FROM fomc_events").fetchone()[0],
     "Trading Signals": conn.execute("SELECT COUNT(*) FROM trading_signals").fetchone()[0],
-    "Market Data Points": conn.execute("SELECT COUNT(*) FROM market_data").fetchone()[0],
-    "Watchlist Tickers": conn.execute("SELECT COUNT(*) FROM watchlist WHERE active = 1").fetchone()[0],
+    "Market Data": conn.execute("SELECT COUNT(*) FROM market_data").fetchone()[0],
+    "Watchlist": conn.execute("SELECT COUNT(*) FROM watchlist WHERE active = 1").fetchone()[0],
 }
 conn.close()
 
@@ -81,21 +101,65 @@ total_records = sum(stats.values())
 if total_records == 0:
     st.warning(
         "**Database is empty.** Click **Collect Now** below to fetch recent data, "
-        "or **Run Backfill** to load historical data. The first collection takes 2-3 minutes."
+        "or **Run Backfill** to load historical data."
     )
 
+# ── Collection Steps ──────────────────────────────────────────────────
 
-# ── Helper: run a step safely ─────────────────────────────────────────
-def _run_step(label: str, func, *args, **kwargs):
-    """Run a collection step with error handling. Returns result or None."""
+COLLECT_STEPS = [
+    ("Federal Register", "collectors.federal_register", "collect", {}),
+    ("Sector Tagging", "analysis.sector_mapper", "tag_all_untagged", {}),
+    ("Impact Scoring", "analysis.impact_scorer", "score_all_unscored", {}),
+    ("Market Data", "collectors.market_data", "collect", {}),
+    ("FDA Events", "collectors.fda_calendar", "collect_from_regulatory_events", {}),
+    ("Congress.gov", "collectors.congress", "collect", {}),
+    ("Regulations.gov", "collectors.regulations_gov", "collect", {}),
+    ("Lobbying Filings", "collectors.lobbying", "collect", {}),
+    ("Congress Trades", "collectors.congress_trades", "collect", {}),
+    ("FRED Macro Data", "collectors.fred_macro", "collect", {}),
+    ("FOMC Events", "collectors.fomc", "collect", {}),
+]
+
+
+def _run_collection(steps, progress_bar, status_text):
+    """Run a list of collection steps with progress tracking."""
+    results = {}
+    total = len(steps) + 1  # +1 for regime classification
+
+    for i, (label, module_path, func_name, kwargs) in enumerate(steps):
+        pct = i / total
+        progress_bar.progress(pct, text=f"({i+1}/{total}) {label}...")
+        status_text.write(f"**{label}...**")
+
+        try:
+            import importlib
+            mod = importlib.import_module(module_path)
+            func = getattr(mod, func_name)
+            result = func(**kwargs)
+            status_text.write(f"  :white_check_mark: {label}: **{result}**")
+            results[label] = result
+        except Exception as e:
+            status_text.write(f"  :x: {label}: {e}")
+            results[label] = None
+
+    # Macro regime classification
+    progress_bar.progress((total - 1) / total, text=f"({total}/{total}) Classifying regime...")
+    status_text.write("**Classifying macro regime...**")
     try:
-        st.write(f"**{label}...**")
-        result = func(*args, **kwargs)
-        st.write(f"  ✓ {label}: done ({result})")
-        return result
+        from analysis.macro_regime import classify_current_regime
+        regime = classify_current_regime()
+        if regime:
+            status_text.write(
+                f"  :white_check_mark: Regime: **Q{regime['quadrant']} {regime['label']}** "
+                f"({regime['confidence']} confidence)"
+            )
+        else:
+            status_text.write("  :warning: Insufficient data for regime classification")
     except Exception as e:
-        st.write(f"  ✗ {label}: failed — {e}")
-        return None
+        status_text.write(f"  :x: Regime: {e}")
+
+    progress_bar.progress(1.0, text="Complete!")
+    return results
 
 
 # --- Data Collection Controls ---
@@ -107,86 +171,23 @@ col_collect, col_backfill = st.columns(2)
 with col_collect:
     st.markdown("**Collect Latest** — Fetch recent data from all sources.")
     if st.button("Collect Now", type="primary"):
-        with st.status("Running collectors — this may take a few minutes...", expanded=True) as status:
-            from collectors import federal_register, market_data, fda_calendar
-            from collectors import congress, regulations_gov, lobbying, congress_trades
-            from collectors import fred_macro, fomc
-            from analysis import sector_mapper, impact_scorer
+        progress_bar = st.progress(0, text="Starting collectors...")
+        status_area = st.container()
 
-            results = {}
+        with status_area:
+            results = _run_collection(COLLECT_STEPS, progress_bar, st)
 
-            results["Federal Register"] = _run_step(
-                "Federal Register events", federal_register.collect
-            )
-
-            results["Sector tagging"] = _run_step(
-                "Sector tagging", sector_mapper.tag_all_untagged
-            )
-
-            results["Impact scoring"] = _run_step(
-                "Impact scoring", impact_scorer.score_all_unscored
-            )
-
-            results["Market data"] = _run_step(
-                "Market data", market_data.collect
-            )
-
-            results["FDA events"] = _run_step(
-                "FDA events", fda_calendar.collect_from_regulatory_events
-            )
-
-            results["Congress.gov"] = _run_step(
-                "Congress.gov", congress.collect
-            )
-
-            results["Regulations.gov"] = _run_step(
-                "Regulations.gov", regulations_gov.collect
-            )
-
-            results["Lobbying filings"] = _run_step(
-                "Lobbying filings", lobbying.collect
-            )
-
-            results["Congressional trades"] = _run_step(
-                "Congressional trades", congress_trades.collect
-            )
-
-            results["FRED macro data"] = _run_step(
-                "FRED macro data", fred_macro.collect
-            )
-
-            results["FOMC events"] = _run_step(
-                "FOMC events", fomc.collect
-            )
-
-            # Macro regime classification
-            try:
-                st.write("**Classifying macro regime...**")
-                from analysis.macro_regime import classify_current_regime
-                regime = classify_current_regime()
-                if regime:
-                    st.write(f"  ✓ Regime: Q{regime['quadrant']} {regime['label']} ({regime['confidence']} confidence)")
-                else:
-                    st.write("  ⚠ Insufficient data — run Backfill from 2023 to populate")
-            except Exception as e:
-                st.write(f"  ✗ Regime classification failed: {e}")
-
-            # Summary
-            succeeded = sum(1 for v in results.values() if v is not None)
-            failed = sum(1 for v in results.values() if v is None)
-            summary = f"Done — {succeeded} collectors succeeded"
-            if failed:
-                summary += f", {failed} failed"
-
-            st.markdown("---")
-            st.markdown(f"### {summary}")
-            status.update(label=summary, state="complete" if failed == 0 else "error")
+        succeeded = sum(1 for v in results.values() if v is not None)
+        failed = sum(1 for v in results.values() if v is None)
+        if failed == 0:
+            st.success(f"All {succeeded} collectors completed successfully!")
+        else:
+            st.warning(f"{succeeded} succeeded, {failed} failed")
 
         st.cache_data.clear()
-        st.rerun()
 
 with col_backfill:
-    st.markdown("**Backfill** — Load historical data. Set start to **2023-01-01** for full macro regime history.")
+    st.markdown("**Backfill** — Load historical data from **2023-01-01** for full regime history.")
     bf_col1, bf_col2 = st.columns(2)
     with bf_col1:
         bf_start = st.date_input("Start", value=date(2023, 1, 1), key="bf_start")
@@ -194,110 +195,37 @@ with col_backfill:
         bf_end = st.date_input("End", value=date.today(), key="bf_end")
 
     if st.button("Run Backfill"):
-        with st.status("Running backfill — this will take several minutes...", expanded=True) as status:
-            results = {}
+        progress_bar = st.progress(0, text="Starting backfill...")
 
-            # Federal Register in chunks
-            try:
-                from collectors import federal_register
-                st.write("**Federal Register (chunked)...**")
+        backfill_steps = [
+            ("Federal Register", "collectors.federal_register", "backfill",
+             {"start_date": bf_start.isoformat(), "end_date": bf_end.isoformat(), "max_pages_per_type": 20}),
+            ("Sector Tagging", "analysis.sector_mapper", "tag_all_untagged", {}),
+            ("Impact Scoring", "analysis.impact_scorer", "score_all_unscored", {}),
+            ("Market Data", "collectors.market_data", "collect",
+             {"start_date": bf_start.isoformat(), "end_date": bf_end.isoformat()}),
+            ("FDA Events", "collectors.fda_calendar", "collect_from_regulatory_events", {}),
+            ("Congress.gov", "collectors.congress", "backfill",
+             {"start_date": bf_start.isoformat(), "end_date": bf_end.isoformat()}),
+            ("Regulations.gov", "collectors.regulations_gov", "backfill",
+             {"start_date": bf_start.isoformat(), "end_date": bf_end.isoformat()}),
+            ("Lobbying", "collectors.lobbying", "backfill",
+             {"start_year": bf_start.year, "end_year": bf_end.year}),
+            ("FRED Macro", "collectors.fred_macro", "backfill",
+             {"since_date": bf_start.isoformat()}),
+            ("FOMC Events", "collectors.fomc", "collect", {}),
+        ]
 
-                total_events = 0
-                current = bf_start
-                chunk_days = 90
-                while current < bf_end:
-                    chunk_end = min(current + timedelta(days=chunk_days), bf_end)
-                    st.write(f"  Chunk: {current} to {chunk_end}...")
-                    try:
-                        new = federal_register.backfill(
-                            current.isoformat(), chunk_end.isoformat(), max_pages_per_type=50
-                        )
-                        total_events += new
-                    except Exception as e:
-                        st.write(f"    ✗ Chunk failed: {e}")
-                    current = chunk_end + timedelta(days=1)
+        results = _run_collection(backfill_steps, progress_bar, st)
 
-                st.write(f"  ✓ Federal Register: {total_events} events")
-                results["Federal Register"] = total_events
-            except Exception as e:
-                st.write(f"  ✗ Federal Register failed: {e}")
-                results["Federal Register"] = None
-
-            from analysis import sector_mapper, impact_scorer
-
-            results["Sector tagging"] = _run_step(
-                "Sector tagging", sector_mapper.tag_all_untagged
-            )
-
-            results["Impact scoring"] = _run_step(
-                "Impact scoring", impact_scorer.score_all_unscored
-            )
-
-            from collectors import market_data
-            results["Market data"] = _run_step(
-                "Market data", market_data.collect,
-                start_date=bf_start.isoformat(), end_date=bf_end.isoformat()
-            )
-
-            from collectors import fda_calendar
-            results["FDA events"] = _run_step(
-                "FDA events", fda_calendar.collect_from_regulatory_events
-            )
-
-            from collectors import congress
-            results["Congress.gov"] = _run_step(
-                "Congress.gov backfill", congress.backfill,
-                bf_start.isoformat(), bf_end.isoformat()
-            )
-
-            from collectors import regulations_gov
-            results["Regulations.gov"] = _run_step(
-                "Regulations.gov backfill", regulations_gov.backfill,
-                bf_start.isoformat(), bf_end.isoformat()
-            )
-
-            from collectors import lobbying
-            results["Lobbying"] = _run_step(
-                "Lobbying backfill", lobbying.backfill,
-                start_year=bf_start.year, end_year=bf_end.year
-            )
-
-            from collectors import fred_macro
-            results["FRED macro"] = _run_step(
-                "FRED macro backfill", fred_macro.backfill,
-                bf_start.isoformat()
-            )
-
-            from collectors import fomc
-            results["FOMC events"] = _run_step(
-                "FOMC events", fomc.collect
-            )
-
-            # Macro regime classification
-            try:
-                st.write("**Classifying macro regime...**")
-                from analysis.macro_regime import classify_current_regime
-                regime = classify_current_regime()
-                if regime:
-                    st.write(f"  ✓ Regime: Q{regime['quadrant']} {regime['label']} ({regime['confidence']} confidence)")
-                else:
-                    st.write("  ⚠ Insufficient data for regime classification")
-            except Exception as e:
-                st.write(f"  ✗ Regime classification failed: {e}")
-
-            # Summary
-            succeeded = sum(1 for v in results.values() if v is not None)
-            failed = sum(1 for v in results.values() if v is None)
-            summary = f"Backfill done — {succeeded} steps succeeded"
-            if failed:
-                summary += f", {failed} failed"
-
-            st.markdown("---")
-            st.markdown(f"### {summary}")
-            status.update(label=summary, state="complete" if failed == 0 else "error")
+        succeeded = sum(1 for v in results.values() if v is not None)
+        failed = sum(1 for v in results.values() if v is None)
+        if failed == 0:
+            st.success(f"Backfill complete! All {succeeded} steps succeeded.")
+        else:
+            st.warning(f"Backfill: {succeeded} succeeded, {failed} failed")
 
         st.cache_data.clear()
-        st.rerun()
 
 # --- Backtesting ---
 st.markdown("---")
@@ -319,7 +247,7 @@ with bt_col1:
                     all_results = runner.run_all()
                     for name, result in all_results.items():
                         result.save_to_db()
-                        st.write(f"  ✓ {name}: Mean CAR {result.mean_car:+.2%} (p={result.p_value:.4f})")
+                        st.write(f"  :white_check_mark: {name}: Mean CAR {result.mean_car:+.2%} (p={result.p_value:.4f})")
                 else:
                     result = runner.run_study(selected_study)
                     result.save_to_db()
@@ -327,7 +255,7 @@ with bt_col1:
 
                 status.update(label="Backtests complete!", state="complete")
             except Exception as e:
-                st.write(f"  ✗ Backtest failed: {e}")
+                st.write(f"  :x: Backtest failed: {e}")
                 status.update(label="Backtest failed", state="error")
         st.cache_data.clear()
 
