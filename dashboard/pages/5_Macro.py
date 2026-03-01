@@ -78,7 +78,11 @@ def load_yield_curve_data():
 regimes = load_regime_data()
 
 if regimes.empty:
-    st.warning("No macro regime data available. Configure a FRED API key and run the FRED collector to populate.")
+    st.warning(
+        "No macro regime data yet. Go to the **Home** page and click **Run Backfill** "
+        "with a start date of **2023-01-01** to populate FRED macro data and classify the regime."
+    )
+    st.info("The FRED collector needs 12+ months of data to calculate rate-of-change for regime classification.")
     st.stop()
 
 current = regimes.iloc[0]
