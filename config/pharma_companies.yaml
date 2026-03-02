@@ -73,3 +73,51 @@ pharma_companies:
     ticker: BNTX
   - names: ["Catalent", "CATALENT INC"]
     ticker: CTLT
+  - names: ["Argenx", "ARGENX SE", "ARGENX"]
+    ticker: ARGX
+  - names: ["Ascendis Pharma", "ASCENDIS PHARMA"]
+    ticker: ASND
+  - names: ["Blueprint Medicines", "BLUEPRINT MEDICINES"]
+    ticker: BPMC
+  - names: ["Cerevel", "CEREVEL THERAPEUTICS"]
+    ticker: ABBV
+  - names: ["Corcept", "CORCEPT THERAPEUTICS"]
+    ticker: CORT
+  - names: ["Crinetics", "CRINETICS PHARMACEUTICALS"]
+    ticker: CRNX
+  - names: ["Cytokinetics", "CYTOKINETICS INC"]
+    ticker: CYTK
+  - names: ["Exelixis", "EXELIXIS INC"]
+    ticker: EXEL
+  - names: ["Halozyme", "HALOZYME THERAPEUTICS"]
+    ticker: HALO
+  - names: ["Immunomedics", "GILEAD SCIENCES"]
+    ticker: GILD
+  - names: ["Ionis", "IONIS PHARMACEUTICALS"]
+    ticker: IONS
+  - names: ["Karuna", "KARUNA THERAPEUTICS"]
+    ticker: BMY
+  - names: ["Legend Biotech", "LEGEND BIOTECH"]
+    ticker: LEGN
+  - names: ["Madrigal", "MADRIGAL PHARMACEUTICALS"]
+    ticker: MDGL
+  - names: ["Mirati", "MIRATI THERAPEUTICS"]
+    ticker: BMY
+  - names: ["Natera", "NATERA INC"]
+    ticker: NTRA
+  - names: ["Prometheus", "PROMETHEUS BIOSCIENCES"]
+    ticker: MRK
+  - names: ["Revolution Medicines", "REVOLUTION MEDICINES"]
+    ticker: RVMD
+  - names: ["Roivant Sciences", "ROIVANT SCIENCES"]
+    ticker: ROIV
+  - names: ["Rocket Pharmaceuticals", "ROCKET PHARMACEUTICALS"]
+    ticker: RCKT
+  - names: ["Teva", "TEVA PHARMACEUTICAL", "TEVA"]
+    ticker: TEVA
+  - names: ["Vir Biotechnology", "VIR BIOTECHNOLOGY"]
+    ticker: VIR
+  - names: ["Xenon", "XENON PHARMACEUTICALS"]
+    ticker: XENE
+  - names: ["Zymeworks", "ZYMEWORKS INC"]
+    ticker: ZYME

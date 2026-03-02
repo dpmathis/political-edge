@@ -149,7 +149,7 @@ class EventStudy:
             window_post: Trading days after event
             estimation_window: Days for expected return estimation (market_model only)
             benchmark: Override default benchmark ticker
-            method: 'market_adjusted' or 'market_model'
+            method: 'market_adjusted', 'market_model', or 'raw_returns'
 
         Returns:
             EventStudyResults with aggregate stats and per-event details.
@@ -319,7 +319,9 @@ class EventStudy:
                 est_bench = bench_returns.loc[est_dates]
                 alpha, beta = self._estimate_market_model(est_stock, est_bench)
 
-        if method == "market_adjusted":
+        if method == "raw_returns":
+            daily_ar = window_stock.values.tolist()
+        elif method == "market_adjusted":
             daily_ar = (window_stock - window_bench).values.tolist()
         else:
             expected = alpha + beta * window_bench

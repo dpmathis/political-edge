@@ -22,7 +22,8 @@ class BacktestRunner:
 
     def list_studies(self) -> list[str]:
         """List available backtest study names."""
-        return ["tariff_sectors", "contract_awards", "fda_adcom", "high_impact_regulatory"]
+        return ["tariff_sectors", "contract_awards", "fda_adcom",
+                "high_impact_regulatory", "fomc_drift"]
 
     def run_all(self) -> dict[str, EventStudyResults]:
         """Run all hypothesis backtests. Returns dict of name → results."""
@@ -42,6 +43,7 @@ class BacktestRunner:
             "contract_awards": self.backtest_contract_awards,
             "fda_adcom": self.backtest_fda_adcom,
             "high_impact_regulatory": self.backtest_high_impact_regulatory,
+            "fomc_drift": self.backtest_fomc_drift,
         }
         func = method_map.get(name)
         if not func:
@@ -216,4 +218,44 @@ class BacktestRunner:
             window_post=5,
             benchmark="SPY",
             method="market_adjusted",
+        )
+
+    def backtest_fomc_drift(self) -> EventStudyResults:
+        """Pre-FOMC drift: SPY tends to rise in the 5 days before FOMC meetings.
+
+        Literature documents a ~0.49% average drift in the 5 trading days
+        before FOMC announcement days.
+        """
+        conn = sqlite3.connect(self.db_path)
+        rows = conn.execute(
+            """SELECT event_date FROM fomc_events
+               WHERE event_type = 'meeting'
+                 AND event_date <= date('now')
+               ORDER BY event_date"""
+        ).fetchall()
+        conn.close()
+
+        events = [
+            {"date": r[0], "ticker": "SPY", "label": f"FOMC Meeting {r[0]}"}
+            for r in rows
+        ]
+
+        # Deduplicate
+        seen = set()
+        unique_events = []
+        for e in events:
+            key = (e["date"], e["ticker"])
+            if key not in seen:
+                seen.add(key)
+                unique_events.append(e)
+        events = unique_events
+
+        return self.event_study.run(
+            events=events,
+            study_name="fomc_drift",
+            hypothesis="SPY exhibits positive drift (+0.49% avg) in the 5 days preceding FOMC meetings",
+            window_pre=5,
+            window_post=2,
+            benchmark="SPY",
+            method="raw_returns",  # Use raw returns since SPY is the benchmark
         )

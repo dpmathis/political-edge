@@ -188,6 +188,56 @@ if not recent_events.empty:
 else:
     st.info("No high-impact events in the last 48 hours.")
 
+# ── Prediction Market Sentiment ────────────────────────────────
+st.markdown("---")
+st.subheader("Prediction Market Sentiment")
+
+pred_markets = pd.read_sql_query(
+    """SELECT question_text, current_price, volume, category, resolution_date, related_ticker
+       FROM prediction_markets
+       WHERE current_price IS NOT NULL
+       ORDER BY volume DESC
+       LIMIT 12""",
+    conn,
+)
+
+if not pred_markets.empty:
+    # Show FOMC rate probabilities first if available
+    fomc_markets = pred_markets[pred_markets["category"] == "fomc"]
+    rate_markets = fomc_markets[fomc_markets["question_text"].str.contains("interest rate", case=False, na=False)]
+
+    if not rate_markets.empty:
+        st.markdown("**FOMC Rate Decision Probabilities**")
+        rate_cols = st.columns(min(len(rate_markets), 4))
+        for i, (_, row) in enumerate(rate_markets.head(4).iterrows()):
+            with rate_cols[i]:
+                # Extract short label from question
+                q = row["question_text"]
+                if "no change" in q.lower():
+                    label = "Hold"
+                elif "decrease" in q.lower() and "50" in q:
+                    label = "Cut 50bp"
+                elif "decrease" in q.lower() and "25" in q:
+                    label = "Cut 25bp"
+                elif "increase" in q.lower():
+                    label = "Hike 25bp"
+                else:
+                    label = q[:20]
+                st.metric(label, f"{row['current_price']:.1%}")
+
+    # Other notable markets
+    other_markets = pred_markets[~pred_markets.index.isin(rate_markets.index)].head(6)
+    if not other_markets.empty:
+        st.markdown("**Other Notable Markets**")
+        for _, row in other_markets.iterrows():
+            ticker_str = f" [{row['related_ticker']}]" if row["related_ticker"] else ""
+            st.markdown(
+                f"- **{row['current_price']:.1%}** — {row['question_text'][:80]}{ticker_str} "
+                f"(${row['volume']:,.0f} volume)"
+            )
+else:
+    st.info("No prediction market data. Run the Polymarket collector from Settings.")
+
 # ── EO Signals Summary ─────────────────────────────────────────
 st.markdown("---")
 st.subheader("Executive Order Signals")

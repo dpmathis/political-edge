@@ -28,7 +28,10 @@ def load_signals(status_filter: str | None = None) -> pd.DataFrame:
     query = """SELECT id, signal_date, ticker, signal_type, direction, conviction,
                       position_size_modifier, status, entry_price, entry_date,
                       exit_price, exit_date, pnl_dollars, pnl_percent,
-                      holding_days, rationale, macro_regime_at_signal
+                      holding_days, rationale, macro_regime_at_signal,
+                      stop_loss_price, take_profit_price, suggested_position_size,
+                      time_horizon_days, expected_car,
+                      historical_win_rate, historical_p_value, historical_n_events
                FROM trading_signals"""
     if status_filter and status_filter != "All":
         query += f" WHERE status = '{status_filter}'"
@@ -147,9 +150,30 @@ else:
             lambda x: f"{x:.1f}x" if pd.notna(x) else ""
         )
 
+    # Format new trade parameter columns
+    for col in ["expected_car", "historical_win_rate"]:
+        if col in display_df.columns:
+            display_df[col] = display_df[col].apply(
+                lambda x: f"{x:+.2%}" if pd.notna(x) else ""
+            )
+    if "suggested_position_size" in display_df.columns:
+        display_df["suggested_position_size"] = display_df["suggested_position_size"].apply(
+            lambda x: f"{x:.1%}" if pd.notna(x) else ""
+        )
+    for col in ["stop_loss_price", "take_profit_price"]:
+        if col in display_df.columns:
+            display_df[col] = display_df[col].apply(
+                lambda x: f"${x:,.2f}" if pd.notna(x) else ""
+            )
+    if "historical_p_value" in display_df.columns:
+        display_df["historical_p_value"] = display_df["historical_p_value"].apply(
+            lambda x: f"{x:.3f}" if pd.notna(x) else ""
+        )
+
     show_cols = [
         "signal_date", "ticker", "signal_type", "direction", "conviction",
-        "position_size_modifier", "status", "entry_price", "pnl_percent",
+        "position_size_modifier", "status", "expected_car", "entry_price",
+        "stop_loss_price", "take_profit_price", "pnl_percent",
         "holding_days", "rationale",
     ]
     available = [c for c in show_cols if c in display_df.columns]
@@ -162,13 +186,80 @@ else:
         "conviction": "Conviction",
         "position_size_modifier": "Macro Mod",
         "status": "Status",
+        "expected_car": "Exp CAR",
         "entry_price": "Entry $",
+        "stop_loss_price": "Stop $",
+        "take_profit_price": "TP $",
         "pnl_percent": "PnL %",
         "holding_days": "Days",
         "rationale": "Rationale",
     }
     display_df = display_df[available].rename(columns=rename)
     st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    # Historical performance context
+    with st.expander("Signal Historical Performance"):
+        perf_cols_show = [
+            "signal_type", "expected_car", "historical_win_rate",
+            "historical_p_value", "historical_n_events",
+            "suggested_position_size", "time_horizon_days",
+        ]
+        perf_available = [c for c in perf_cols_show if c in signals_df.columns]
+        if perf_available:
+            perf_df = signals_df[perf_available].drop_duplicates(subset=["signal_type"])
+            perf_rename = {
+                "signal_type": "Signal Type",
+                "expected_car": "Expected CAR",
+                "historical_win_rate": "Win Rate",
+                "historical_p_value": "p-value",
+                "historical_n_events": "N Events",
+                "suggested_position_size": "Position Size",
+                "time_horizon_days": "Horizon (days)",
+            }
+            for col in ["expected_car", "historical_win_rate"]:
+                if col in perf_df.columns:
+                    perf_df[col] = perf_df[col].apply(
+                        lambda x: f"{x:+.2%}" if pd.notna(x) else "N/A"
+                    )
+            if "historical_p_value" in perf_df.columns:
+                perf_df["historical_p_value"] = perf_df["historical_p_value"].apply(
+                    lambda x: f"{x:.3f}" if pd.notna(x) else "N/A"
+                )
+            if "suggested_position_size" in perf_df.columns:
+                perf_df["suggested_position_size"] = perf_df["suggested_position_size"].apply(
+                    lambda x: f"{x:.1%}" if pd.notna(x) else "N/A"
+                )
+            perf_df = perf_df.rename(columns=perf_rename)
+            st.dataframe(perf_df, use_container_width=True, hide_index=True)
+
+    # ── Prediction Market Context ────────────────────────────────────
+    with st.expander("Prediction Market Context"):
+        try:
+            pred_conn = sqlite3.connect(DB_PATH)
+            pred_df = pd.read_sql_query(
+                """SELECT question_text, current_price, volume, category, related_ticker
+                   FROM prediction_markets
+                   WHERE current_price IS NOT NULL
+                   ORDER BY volume DESC LIMIT 10""",
+                pred_conn,
+            )
+            pred_conn.close()
+
+            if not pred_df.empty:
+                pred_df["current_price"] = pred_df["current_price"].apply(lambda x: f"{x:.1%}")
+                pred_df["volume"] = pred_df["volume"].apply(lambda x: f"${x:,.0f}")
+                pred_df = pred_df.rename(columns={
+                    "question_text": "Market",
+                    "current_price": "Probability",
+                    "volume": "Volume",
+                    "category": "Category",
+                    "related_ticker": "Ticker",
+                })
+                st.dataframe(pred_df, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No prediction market data. Run Polymarket collector from Settings.")
+        except Exception:
+            st.caption("Prediction markets table not available.")
 
     # ── Signal Actions ────────────────────────────────────────────────
     pending_signals = signals_df[signals_df["status"] == "pending"]

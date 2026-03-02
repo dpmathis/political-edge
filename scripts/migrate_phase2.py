@@ -167,6 +167,52 @@ CREATE INDEX IF NOT EXISTS idx_paper_signal ON paper_trades(signal_id);
 """
 
 
+PHASE_6_ALTERS = [
+    # Sprint 2: Trade parameters on signals
+    "ALTER TABLE trading_signals ADD COLUMN stop_loss_price REAL",
+    "ALTER TABLE trading_signals ADD COLUMN take_profit_price REAL",
+    "ALTER TABLE trading_signals ADD COLUMN suggested_position_size REAL",
+    "ALTER TABLE trading_signals ADD COLUMN time_horizon_days INTEGER",
+    "ALTER TABLE trading_signals ADD COLUMN expected_car REAL",
+    "ALTER TABLE trading_signals ADD COLUMN historical_win_rate REAL",
+    "ALTER TABLE trading_signals ADD COLUMN historical_p_value REAL",
+    "ALTER TABLE trading_signals ADD COLUMN historical_n_events INTEGER",
+    # Sprint 3: Prediction markets
+    "ALTER TABLE trading_signals ADD COLUMN prediction_market_prob REAL",
+]
+
+PHASE_6_TABLES = """
+-- Sprint 3: Prediction Markets
+CREATE TABLE IF NOT EXISTS prediction_markets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id TEXT UNIQUE NOT NULL,
+    platform TEXT NOT NULL,
+    question_text TEXT,
+    current_price REAL,
+    volume REAL,
+    resolution_date DATE,
+    category TEXT,
+    related_ticker TEXT,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pred_category ON prediction_markets(category);
+
+-- Data collection log
+CREATE TABLE IF NOT EXISTS data_collection_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collector_name TEXT NOT NULL,
+    run_type TEXT DEFAULT 'manual',
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    records_added INTEGER DEFAULT 0,
+    records_updated INTEGER DEFAULT 0,
+    errors TEXT,
+    status TEXT DEFAULT 'running'
+);
+CREATE INDEX IF NOT EXISTS idx_dcl_collector ON data_collection_log(collector_name, started_at DESC);
+"""
+
+
 def main():
     if not os.path.exists(DB_PATH):
         print(f"Database not found at {DB_PATH}. Run setup_db.py first.")
@@ -180,6 +226,15 @@ def main():
     )
 
     conn.executescript(MIGRATION_SQL)
+    conn.executescript(PHASE_6_TABLES)
+
+    # Add columns (safe to run multiple times — SQLite errors on dups which we ignore)
+    for alter in PHASE_6_ALTERS:
+        try:
+            conn.execute(alter)
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
     conn.commit()
 
     after = set(

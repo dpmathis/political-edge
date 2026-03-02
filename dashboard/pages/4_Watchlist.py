@@ -17,13 +17,25 @@ from dashboard.components.price_chart import render_price_chart
 st.title("Watchlist")
 st.caption("Combined per-ticker view across all data sources")
 
+from dashboard.components.freshness import render_freshness
+render_freshness("market_data", "date", "Market Data")
+
 conn = sqlite3.connect(DB_PATH)
 
+
+@st.cache_data(ttl=300)
+def _load_watchlist():
+    c = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query(
+        "SELECT ticker, company_name, sector, subsector, active FROM watchlist ORDER BY sector, ticker",
+        c,
+    )
+    c.close()
+    return df
+
+
 # --- WATCHLIST TABLE ---
-watchlist_df = pd.read_sql_query(
-    "SELECT ticker, company_name, sector, subsector, active FROM watchlist ORDER BY sector, ticker",
-    conn,
-)
+watchlist_df = _load_watchlist()
 
 if watchlist_df.empty:
     st.warning("No tickers in watchlist. Run setup to populate.")
@@ -63,7 +75,27 @@ if selected_ticker:
     start_365 = (date.today() - timedelta(days=365)).isoformat()
 
     # --- 1. PRICE CHART ---
-    render_price_chart(selected_ticker, start_365, end_date)
+    chart_ctrl = st.columns([1, 1, 1, 1])
+    with chart_ctrl[0]:
+        show_mas = st.checkbox("Moving Averages", value=True, key="wl_mas")
+    with chart_ctrl[1]:
+        show_volume = st.checkbox("Volume", value=True, key="wl_vol")
+    with chart_ctrl[2]:
+        benchmark = st.selectbox(
+            "Benchmark",
+            ["None", "SPY", "XBI", "XLF", "XLK", "XLE", "XLI"],
+            key="wl_bench",
+        )
+    with chart_ctrl[3]:
+        event_windows = st.checkbox("Event Windows", value=False, key="wl_ew")
+
+    render_price_chart(
+        selected_ticker, start_365, end_date,
+        show_mas=show_mas,
+        show_volume=show_volume,
+        benchmark=benchmark if benchmark != "None" else None,
+        event_windows=event_windows,
+    )
 
     # --- 2. REGULATORY EVENTS ---
     st.markdown("---")

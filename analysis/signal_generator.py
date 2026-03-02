@@ -94,6 +94,13 @@ SIGNAL_RULES = {
         "default_direction": "long",
         "base_conviction": "high",
     },
+    "fomc_drift": {
+        "description": "Pre-FOMC drift trade (documented +0.49% avg SPY drift 5 days before meeting)",
+        "source_table": "fomc_events",
+        "trigger_sql": None,  # Custom — date-based
+        "default_direction": "long",
+        "base_conviction": "medium",
+    },
 }
 
 # Max holding period for active signals
@@ -129,23 +136,61 @@ def _adjust_conviction(base: str, boosts: int, reduces: int) -> str:
     return CONVICTION_LEVELS[idx]
 
 
-def _determine_regulatory_direction(event_type: str, title: str) -> str:
-    """Determine direction for regulatory events based on type and title."""
-    title_lower = title.lower() if title else ""
+def _determine_regulatory_direction(event_type: str, title: str, agency: str = None,
+                                     macro_quadrant: int = None) -> str:
+    """Determine direction for regulatory events based on type, title, agency, and macro.
 
-    # Restrictive keywords suggest short
-    restrict_words = ["restrict", "ban", "prohibit", "penalty", "enforcement", "recall", "suspend"]
+    Logic:
+    1. Strong keyword signals override everything
+    2. Event type semantics (proposed_rule = uncertainty → short bias)
+    3. Agency-specific patterns (DoD → long defense, EPA → short energy)
+    4. Macro regime context (stagflation → short bias for new regulation)
+    """
+    title_lower = title.lower() if title else ""
+    agency_lower = agency.lower() if agency else ""
+
+    # Strong restrictive keywords → short
+    restrict_words = ["restrict", "ban", "prohibit", "penalty", "enforcement",
+                      "recall", "suspend", "revoke", "terminate", "cease", "fine"]
     if any(w in title_lower for w in restrict_words):
         return "short"
 
-    # Supportive keywords suggest long
-    support_words = ["subsid", "incentive", "credit", "approve", "grant", "award", "fund"]
+    # Strong supportive keywords → long
+    support_words = ["subsid", "incentive", "credit", "approve", "grant",
+                     "award", "fund", "waiver", "deregulat", "relief", "expedit"]
     if any(w in title_lower for w in support_words):
         return "long"
 
-    # Executive orders tend to be directional
-    if event_type == "executive_order":
-        return "long"  # Default to long for EOs, adjust manually
+    # Tariff-specific: imposition → short affected sectors, relief → long
+    if "tariff" in title_lower or "duty" in title_lower:
+        tariff_negative = ["impos", "increas", "additional", "retaliatory"]
+        if any(w in title_lower for w in tariff_negative):
+            return "short"
+        tariff_positive = ["reduc", "eliminat", "exempt", "suspen", "relief"]
+        if any(w in title_lower for w in tariff_positive):
+            return "long"
+        return "short"  # Default tariffs to short (uncertainty)
+
+    # Event type semantics
+    if event_type == "proposed_rule":
+        # Proposed rules create uncertainty — lean short unless clearly supportive
+        return "short"
+    if event_type == "final_rule":
+        # Final rules resolve uncertainty — lean long (clarity)
+        return "long"
+
+    # Agency-specific patterns
+    if any(a in agency_lower for a in ["defense", "dod", "army", "navy", "air force"]):
+        return "long"  # Defense spending = long defense tickers
+    if any(a in agency_lower for a in ["environmental protection", "epa"]):
+        # EPA rules → typically short for energy, but macro-dependent
+        if macro_quadrant in (1, 2):  # Growth accelerating, can absorb regulation
+            return "long"
+        return "short"
+
+    # Macro regime context for ambiguous events
+    if macro_quadrant in (3, 4):  # Stagflation/Deflation — new regulation is headwind
+        return "short"
 
     return "long"
 
@@ -252,7 +297,10 @@ def _generate_regulatory_signals(conn: sqlite3.Connection, macro_modifier: float
             if event["event_type"] == "proposed_rule":
                 reduces += 1
 
-            direction = _determine_regulatory_direction(event["event_type"], event["title"])
+            direction = _determine_regulatory_direction(
+                event["event_type"], event["title"],
+                agency=event.get("agency"), macro_quadrant=macro_quadrant,
+            )
             conviction = _adjust_conviction(rule["base_conviction"], boosts, reduces)
             rationale = f"{event['event_type'].replace('_', ' ').title()}: {event['title'][:100]}"
 
@@ -372,6 +420,7 @@ def _generate_eo_signals(conn: sqlite3.Connection, macro_modifier: float, macro_
                 "rationale": rationale,
                 "macro_regime_at_signal": macro_quadrant,
                 "position_size_modifier": macro_modifier,
+                "expected_car": classification["expected_car"],
             })
 
     return signals
@@ -410,9 +459,232 @@ def _generate_reg_shock_signals(conn: sqlite3.Connection, macro_modifier: float,
                 "rationale": rationale,
                 "macro_regime_at_signal": macro_quadrant,
                 "position_size_modifier": macro_modifier,
+                "expected_car": shock["expected_car"],
+                "time_horizon_days": shock.get("hold_days", 5),
             })
 
     return signals
+
+
+def _generate_fomc_signals(conn: sqlite3.Connection, macro_modifier: float, macro_quadrant: int | None) -> list[dict]:
+    """Generate pre-FOMC drift and post-decision signals.
+
+    Pre-FOMC drift: documented +0.49% average SPY drift in 5 days before meeting.
+    Post-decision rotation: after rate decision, sector rotation signals.
+    """
+    from datetime import timedelta
+
+    signals = []
+    today_dt = date.today()
+
+    # --- Pre-FOMC Drift ---
+    # Find FOMC meetings 3-8 days from now (entry window)
+    upcoming = conn.execute(
+        """SELECT id, event_date FROM fomc_events
+           WHERE event_date >= date('now', '+3 days')
+             AND event_date <= date('now', '+8 days')
+           ORDER BY event_date LIMIT 1"""
+    ).fetchone()
+
+    if upcoming and not _has_recent_signal(conn, "SPY", "fomc_drift", days=14):
+        fomc_id, fomc_date = upcoming
+        days_until = (date.fromisoformat(fomc_date) - today_dt).days
+
+        rationale = (
+            f"Pre-FOMC drift: FOMC meeting on {fomc_date} ({days_until} days). "
+            f"Historical avg drift: +0.49% in 5 days before meeting."
+        )
+
+        signals.append({
+            "ticker": "SPY",
+            "signal_type": "fomc_drift",
+            "direction": "long",
+            "conviction": "medium",
+            "source_event_id": fomc_id,
+            "source_table": "fomc_events",
+            "rationale": rationale,
+            "macro_regime_at_signal": macro_quadrant,
+            "position_size_modifier": macro_modifier,
+            "expected_car": 0.0049,
+            "time_horizon_days": days_until,
+        })
+
+    # --- Post-Decision Sector Rotation ---
+    # Check if a meeting happened in last 1 day with a rate decision
+    recent_decision = conn.execute(
+        """SELECT id, event_date, rate_decision, hawkish_dovish_score
+           FROM fomc_events
+           WHERE event_date >= date('now', '-1 day')
+             AND event_date <= date('now')
+             AND rate_decision IS NOT NULL
+           ORDER BY event_date DESC LIMIT 1"""
+    ).fetchone()
+
+    if recent_decision:
+        fomc_id, fomc_date, decision, hd_score = recent_decision
+
+        # Rate cut → long financials/REITs
+        if decision and "cut" in decision.lower():
+            rotation_tickers = {"XLF": "Financials benefit from yield curve steepening",
+                                "XLRE": "REITs benefit from lower rates"}
+            direction = "long"
+        # Rate hike → short rate-sensitive sectors
+        elif decision and "hike" in decision.lower():
+            rotation_tickers = {"XLF": "Financials pressured by flattening curve",
+                                "XLRE": "REITs pressured by higher rates"}
+            direction = "short"
+        else:
+            rotation_tickers = {}
+
+        for ticker, reason in rotation_tickers.items():
+            if _has_recent_signal(conn, ticker, "fomc_drift", days=7):
+                continue
+
+            # Adjust conviction based on hawkish/dovish score magnitude
+            conviction = "medium"
+            if hd_score is not None and abs(hd_score) > 0.5:
+                conviction = "high"
+
+            rationale = (
+                f"Post-FOMC rotation: {decision} on {fomc_date}. {reason}. "
+                f"H/D score: {hd_score:+.2f}." if hd_score else
+                f"Post-FOMC rotation: {decision} on {fomc_date}. {reason}."
+            )
+
+            signals.append({
+                "ticker": ticker,
+                "signal_type": "fomc_drift",
+                "direction": direction,
+                "conviction": conviction,
+                "source_event_id": fomc_id,
+                "source_table": "fomc_events",
+                "rationale": rationale,
+                "macro_regime_at_signal": macro_quadrant,
+                "position_size_modifier": macro_modifier,
+                "time_horizon_days": 10,
+            })
+
+    return signals
+
+
+def _apply_prediction_market_modifier(sig: dict, conn: sqlite3.Connection) -> None:
+    """Adjust conviction based on prediction market probabilities.
+
+    If a matching prediction market exists:
+    - Event priced at >90% → reduce conviction (priced in, limited upside)
+    - Event priced at <50% and our signal agrees → boost conviction (contrarian edge)
+    - Store the prediction market probability on the signal for reference
+    """
+    ticker = sig.get("ticker", "")
+    signal_type = sig.get("signal_type", "")
+
+    # Find matching prediction market contracts
+    # Match by related_ticker or by category alignment
+    category_map = {
+        "fda_catalyst": "fda",
+        "fomc_drift": "fomc",
+    }
+    category = category_map.get(signal_type)
+
+    market = None
+    if category == "fomc":
+        # For FOMC, specifically look for rate decision markets (not nominations)
+        market = conn.execute(
+            """SELECT current_price, question_text FROM prediction_markets
+               WHERE category = 'fomc' AND current_price IS NOT NULL
+                 AND question_text LIKE '%interest rate%'
+               ORDER BY volume DESC LIMIT 1""",
+        ).fetchone()
+    elif category:
+        market = conn.execute(
+            """SELECT current_price, question_text FROM prediction_markets
+               WHERE category = ? AND current_price IS NOT NULL
+               ORDER BY volume DESC LIMIT 1""",
+            (category,),
+        ).fetchone()
+    elif ticker:
+        market = conn.execute(
+            """SELECT current_price, question_text FROM prediction_markets
+               WHERE related_ticker = ? AND current_price IS NOT NULL
+               ORDER BY volume DESC LIMIT 1""",
+            (ticker,),
+        ).fetchone()
+
+    if not market:
+        return
+
+    prob, question = market
+    sig["prediction_market_prob"] = prob
+
+    # Apply conviction adjustment
+    current_conviction = sig.get("conviction", "medium")
+    conviction_idx = CONVICTION_LEVELS.index(current_conviction)
+
+    if prob > 0.90:
+        # Event highly priced in → reduce conviction (limited alpha)
+        conviction_idx = max(0, conviction_idx - 1)
+        sig["conviction"] = CONVICTION_LEVELS[conviction_idx]
+    elif prob < 0.50 and sig.get("direction") == "long":
+        # Market skeptical but we're long → contrarian edge → boost
+        conviction_idx = min(len(CONVICTION_LEVELS) - 1, conviction_idx + 1)
+        sig["conviction"] = CONVICTION_LEVELS[conviction_idx]
+    elif prob > 0.50 and sig.get("direction") == "short":
+        # Market expects event but we're short → contrarian edge → boost
+        conviction_idx = min(len(CONVICTION_LEVELS) - 1, conviction_idx + 1)
+        sig["conviction"] = CONVICTION_LEVELS[conviction_idx]
+
+
+def _enrich_signal(sig: dict, conn: sqlite3.Connection) -> None:
+    """Add trade parameters (stop/TP, position size, horizon, historical perf) to a signal."""
+    from analysis.trading_context import get_historical_performance, get_time_horizon
+    from execution.position_sizer import PositionSizer
+
+    ticker = sig["ticker"]
+    direction = sig["direction"]
+    signal_type = sig["signal_type"]
+
+    # Get current price
+    price_row = conn.execute(
+        "SELECT close FROM market_data WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+        (ticker,),
+    ).fetchone()
+
+    current_price = price_row[0] if price_row else None
+
+    if current_price and direction in ("long", "short"):
+        if direction == "long":
+            sig["stop_loss_price"] = round(current_price * (1 + STOP_LOSS_PCT), 2)
+            sig["take_profit_price"] = round(current_price * (1 + TAKE_PROFIT_PCT), 2)
+        else:  # short
+            sig["stop_loss_price"] = round(current_price * (1 - STOP_LOSS_PCT), 2)
+            sig["take_profit_price"] = round(current_price * (1 - TAKE_PROFIT_PCT), 2)
+
+    # Position size as percentage of equity
+    sizer = PositionSizer()
+    base_pct = sizer._conviction_to_base(sig.get("conviction", "medium"))
+    modifier = sig.get("position_size_modifier", 1.0)
+    sig["suggested_position_size"] = round(min(base_pct * modifier, sizer.max_single), 4)
+
+    # Time horizon
+    sig["time_horizon_days"] = get_time_horizon(signal_type)
+
+    # Historical performance from event studies
+    perf = get_historical_performance(signal_type, conn)
+    if perf:
+        sig["expected_car"] = perf.get("mean_car")
+        sig["historical_win_rate"] = perf.get("win_rate")
+        sig["historical_p_value"] = perf.get("p_value")
+        sig["historical_n_events"] = perf.get("n_events")
+    elif sig.get("expected_car") is None:
+        # Some signal types (eo_*, reg_shock) already have expected_car set in rationale
+        pass
+
+    # Apply prediction market conviction modifier (must run after conviction is set)
+    _apply_prediction_market_modifier(sig, conn)
+
+    # Recalculate position size after conviction may have changed
+    base_pct = sizer._conviction_to_base(sig.get("conviction", "medium"))
+    sig["suggested_position_size"] = round(min(base_pct * modifier, sizer.max_single), 4)
 
 
 def generate_signals() -> list[dict]:
@@ -435,6 +707,7 @@ def generate_signals() -> list[dict]:
         ("lobbying_spike", _generate_lobbying_signals),
         ("eo_signal", _generate_eo_signals),
         ("reg_shock", _generate_reg_shock_signals),
+        ("fomc_drift", _generate_fomc_signals),
     ]
 
     for name, gen_func in generators:
@@ -446,6 +719,12 @@ def generate_signals() -> list[dict]:
         except Exception as e:
             logger.error("Signal generator [%s] failed: %s", name, e)
 
+    # Enrich signals with trade parameters before insertion
+    from analysis.trading_context import get_historical_performance, get_time_horizon
+
+    for sig in all_signals:
+        _enrich_signal(sig, conn)
+
     # Insert signals
     inserted = []
     for sig in all_signals:
@@ -454,8 +733,13 @@ def generate_signals() -> list[dict]:
                 """INSERT INTO trading_signals
                    (signal_date, ticker, signal_type, direction, conviction,
                     source_event_id, source_table, rationale,
-                    macro_regime_at_signal, position_size_modifier, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')""",
+                    macro_regime_at_signal, position_size_modifier, status,
+                    stop_loss_price, take_profit_price, suggested_position_size,
+                    time_horizon_days, expected_car,
+                    historical_win_rate, historical_p_value, historical_n_events,
+                    prediction_market_prob)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending',
+                           ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     today,
                     sig["ticker"],
@@ -467,6 +751,15 @@ def generate_signals() -> list[dict]:
                     sig.get("rationale"),
                     sig.get("macro_regime_at_signal"),
                     sig.get("position_size_modifier", 1.0),
+                    sig.get("stop_loss_price"),
+                    sig.get("take_profit_price"),
+                    sig.get("suggested_position_size"),
+                    sig.get("time_horizon_days"),
+                    sig.get("expected_car"),
+                    sig.get("historical_win_rate"),
+                    sig.get("historical_p_value"),
+                    sig.get("historical_n_events"),
+                    sig.get("prediction_market_prob"),
                 ),
             )
             sig["id"] = cursor.lastrowid

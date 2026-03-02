@@ -112,8 +112,7 @@ if not events_df.empty:
             x="Sector",
             y="Count",
             title="Events by Sector",
-            color="Count",
-            color_continuous_scale="Blues",
+            color="Sector",
         )
         fig.update_layout(height=300, margin=dict(l=40, r=40, t=50, b=40))
         st.plotly_chart(fig, use_container_width=True)

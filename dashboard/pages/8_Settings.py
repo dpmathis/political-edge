@@ -31,6 +31,7 @@ freshness_queries = {
     "FOMC Events": ("fomc_events", "event_date"),
     "Market Data": ("market_data", "date"),
     "Trading Signals": ("trading_signals", "signal_date"),
+    "Prediction Markets": ("prediction_markets", "last_updated"),
 }
 
 fresh_cols = st.columns(4)
@@ -62,6 +63,7 @@ COLLECT_STEPS = [
     ("Congress Trades", "collectors.congress_trades", "collect", {}),
     ("FRED Macro Data", "collectors.fred_macro", "collect", {}),
     ("FOMC Events", "collectors.fomc", "collect", {}),
+    ("Prediction Markets", "collectors.polymarket", "collect", {}),
 ]
 
 
@@ -220,10 +222,28 @@ with bt_col2:
 
     if recent_studies:
         bt_df = pd.DataFrame(recent_studies, columns=["Study", "Events", "Mean CAR", "p-value", "Win Rate", "Run Date"])
-        bt_df["Mean CAR"] = bt_df["Mean CAR"].apply(lambda x: f"{x:+.2%}" if x else "")
+
+        # Significance stars
+        def _sig_stars(p):
+            if p is None:
+                return ""
+            if p < 0.01:
+                return "***"
+            if p < 0.05:
+                return "**"
+            if p < 0.10:
+                return "*"
+            return ""
+
+        # Color-coded Mean CAR with significance
+        bt_df["Mean CAR"] = bt_df.apply(
+            lambda r: f"{r['Mean CAR']:+.2%} {_sig_stars(r['p-value'])}" if r["Mean CAR"] else "",
+            axis=1,
+        )
         bt_df["Win Rate"] = bt_df["Win Rate"].apply(lambda x: f"{x:.1%}" if x else "")
         bt_df["p-value"] = bt_df["p-value"].apply(lambda x: f"{x:.4f}" if x else "")
         st.dataframe(bt_df, use_container_width=True, hide_index=True)
+        st.caption("Significance: \\* p<0.10, \\*\\* p<0.05, \\*\\*\\* p<0.01")
 
 # ── Data Sources ─────────────────────────────────────────────────
 st.markdown("---")
@@ -240,6 +260,7 @@ sources = [
     {"Source": "FRED", "API": "api.stlouisfed.org", "Key Required": "Yes", "Table": "macro_indicators", "Frequency": "Varies"},
     {"Source": "FOMC", "API": "federalreserve.gov", "Key Required": "No", "Table": "fomc_events", "Frequency": "~8x/year"},
     {"Source": "Yahoo Finance", "API": "yfinance library", "Key Required": "No", "Table": "market_data", "Frequency": "Daily"},
+    {"Source": "Polymarket", "API": "gamma-api.polymarket.com", "Key Required": "No", "Table": "prediction_markets", "Frequency": "Daily"},
 ]
 
 st.dataframe(pd.DataFrame(sources), use_container_width=True, hide_index=True)

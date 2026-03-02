@@ -197,13 +197,95 @@ def collect(
 
             time.sleep(RATE_LIMIT_DELAY)
 
+    # Auto-tag tariff events
+    tariff_tagged = tag_tariff_events(conn)
+    if tariff_tagged:
+        logger.info("  Tariff auto-tagged: %d events", tariff_tagged)
+
     conn.close()
     logger.info(
-        "Federal Register collector done: %d fetched, %d new",
+        "Federal Register collector done: %d fetched, %d new, %d tariff-tagged",
         total_fetched,
         total_inserted,
+        tariff_tagged,
     )
     return total_inserted
+
+
+# ── Tariff auto-detection ────────────────────────────────────────
+
+TARIFF_KEYWORDS = [
+    "tariff", "duty", "duties", "import tax", "trade barrier",
+    "anti-dumping", "countervailing", "safeguard measure",
+    "trade remedy", "section 301", "section 232", "section 201",
+    "harmonized tariff", "customs", "trade agreement",
+    "retaliatory", "most-favored-nation", "trade deficit",
+]
+
+# Tariff events affect broad market indices and specific sectors
+TARIFF_TICKERS = {
+    "steel": "X,NUE,CLF",
+    "aluminum": "AA,CENX",
+    "automobile": "F,GM,TM",
+    "automotive": "F,GM,TM",
+    "solar": "FSLR,ENPH,XLE",
+    "semiconductor": "NVDA,AMD,INTC",
+    "agriculture": "ADM,BG,DE",
+    "petroleum": "XOM,CVX,XLE",
+    "oil country": "XOM,CVX,XLE",
+    "default": "SPY,EWC,EWJ",  # Broad market
+}
+
+
+def _detect_tariff_sector(title: str, summary: str) -> str:
+    """Detect which sector a tariff event affects."""
+    text = (title + " " + (summary or "")).lower()
+    for sector, tickers in TARIFF_TICKERS.items():
+        if sector == "default":
+            continue
+        if sector in text:
+            return tickers
+    return TARIFF_TICKERS["default"]
+
+
+def tag_tariff_events(conn: sqlite3.Connection | None = None) -> int:
+    """Auto-tag regulatory events with tariff keywords and affected tickers.
+
+    Returns count of events tagged.
+    """
+    close_conn = False
+    if conn is None:
+        conn = sqlite3.connect(DB_PATH)
+        close_conn = True
+
+    # Find untagged events with tariff keywords
+    like_clauses = " OR ".join(f"title LIKE '%{kw}%'" for kw in TARIFF_KEYWORDS[:8])
+    rows = conn.execute(
+        f"""SELECT id, title, summary FROM regulatory_events
+            WHERE (tickers IS NULL OR tickers = '')
+              AND ({like_clauses})""",
+    ).fetchall()
+
+    tagged = 0
+    for row_id, title, summary in rows:
+        # Verify it's actually tariff-related (not just coincidental keyword)
+        text = (title + " " + (summary or "")).lower()
+        if not any(kw in text for kw in TARIFF_KEYWORDS):
+            continue
+
+        tickers = _detect_tariff_sector(title, summary)
+        conn.execute(
+            "UPDATE regulatory_events SET tickers = ? WHERE id = ? AND (tickers IS NULL OR tickers = '')",
+            (tickers, row_id),
+        )
+        tagged += 1
+
+    conn.commit()
+    if close_conn:
+        conn.close()
+
+    logger.info("Tariff auto-detection: tagged %d events", tagged)
+    return tagged
 
 
 def backfill(start_date: str, end_date: str, max_pages_per_type: int = 50) -> int:
