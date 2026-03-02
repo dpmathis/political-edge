@@ -14,9 +14,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from config import DB_PATH
+from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, render_glossary_term, tooltip
 
 st.title("FDA Catalysts")
 st.caption("FDA advisory committee votes, approvals, and event study results")
+inject_tooltip_css()
 
 from dashboard.components.freshness import render_freshness
 render_freshness("fda_events", "event_date", "FDA Events")
@@ -52,7 +54,7 @@ with kpi_cols[2]:
     st.metric("Mapped to Tickers", with_ticker)
 with kpi_cols[3]:
     if study_row:
-        st.metric("AdCom Study CAR", f"{study_row[0]:+.2%}", help=f"Based on {study_row[2]} events")
+        st.metric("AdCom Study CAR", f"{study_row[0]:+.2%}", help=tooltip("CAR"))
     else:
         st.metric("AdCom Study", "Not run yet")
 
@@ -122,6 +124,16 @@ else:
     display_studies["Win Rate"] = display_studies["Win Rate"].apply(lambda x: f"{x:.1%}" if pd.notna(x) else "")
     st.dataframe(display_studies, use_container_width=True)
 
+    # Trader's Summary for the selected study
+    if study_row:
+        car, win_rate, n_events = study_row
+        st.markdown(
+            f"**Trader's Summary:** When FDA advisory committees vote favorably, "
+            f"the stock moves **{car:+.1%}** on average over the event window. "
+            f"This has worked **{win_rate:.0%}** of the time across {n_events} events. "
+            + ("The statistical evidence is strong." if n_events > 20 else "Sample size is limited — interpret with caution.")
+        )
+
     # CAR curve chart for selected study
     selected_study_idx = st.selectbox(
         "Select study for CAR curve",
@@ -171,16 +183,15 @@ else:
     except Exception:
         per_event = pd.DataFrame()
     if not per_event.empty:
-        st.subheader("Per-Event Results")
-        display_per = per_event.copy()
-        for col in ["car_pre", "car_post", "car_full"]:
-            display_per[col] = display_per[col].apply(lambda x: f"{x:+.2%}" if pd.notna(x) else "")
-        display_per.columns = ["Date", "Ticker", "Description", "CAR Pre", "CAR Post", "CAR Full"]
-        st.dataframe(display_per, use_container_width=True)
+        with st.expander(f"Per-Event Results ({len(per_event)})"):
+            display_per = per_event.copy()
+            for col in ["car_pre", "car_post", "car_full"]:
+                display_per[col] = display_per[col].apply(lambda x: f"{x:+.2%}" if pd.notna(x) else "")
+            display_per.columns = ["Date", "Ticker", "Description", "CAR Pre", "CAR Post", "CAR Full"]
+            st.dataframe(display_per, use_container_width=True)
 
 # --- ALL FDA EVENTS TABLE ---
 st.markdown("---")
-st.subheader("All FDA Events")
 
 try:
     fda_df = pd.read_sql_query(
@@ -199,16 +210,17 @@ conn.close()
 if fda_df.empty:
     st.info("No FDA events found. Run collectors to populate.")
 else:
-    # Filters
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        type_filter = st.multiselect("Event Type", fda_df["event_type"].unique().tolist())
-    with col_f2:
-        ticker_filter = st.multiselect("Ticker", sorted(fda_df["ticker"].dropna().unique().tolist()))
+    with st.expander(f"All FDA Events ({len(fda_df)})"):
+        # Filters
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            type_filter = st.multiselect("Event Type", fda_df["event_type"].unique().tolist())
+        with col_f2:
+            ticker_filter = st.multiselect("Ticker", sorted(fda_df["ticker"].dropna().unique().tolist()))
 
-    if type_filter:
-        fda_df = fda_df[fda_df["event_type"].isin(type_filter)]
-    if ticker_filter:
-        fda_df = fda_df[fda_df["ticker"].isin(ticker_filter)]
+        if type_filter:
+            fda_df = fda_df[fda_df["event_type"].isin(type_filter)]
+        if ticker_filter:
+            fda_df = fda_df[fda_df["ticker"].isin(ticker_filter)]
 
-    st.dataframe(fda_df, use_container_width=True, height=400)
+        st.dataframe(fda_df, use_container_width=True, height=400)

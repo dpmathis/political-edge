@@ -13,12 +13,20 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from config import DB_PATH
+from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, render_glossary_term, tooltip
 
 st.title("Lobbying Activity")
 st.caption("Lobbying disclosure filings with QoQ spending analysis")
+inject_tooltip_css()
 
 from dashboard.components.freshness import render_freshness
 render_freshness("lobbying_filings", "filing_year", "Lobbying Filings")
+
+st.info(
+    "**What are lobbying disclosures?** Companies are legally required to disclose lobbying activity. "
+    "A sudden increase in lobbying spending often signals that a company expects imminent regulation "
+    "that could affect its business — either as a threat to fight or an opportunity to shape."
+)
 
 conn = sqlite3.connect(DB_PATH)
 
@@ -44,11 +52,50 @@ kpi_cols = st.columns(4)
 with kpi_cols[0]:
     st.metric("Total Filings", f"{total_filings:,}")
 with kpi_cols[1]:
-    st.metric("Total Spend", f"${total_spend:,.0f}")
+    st.metric("Total Spend", f"${total_spend:,.0f}", help=tooltip("QoQ"))
 with kpi_cols[2]:
     st.metric("Unique Clients", f"{unique_clients:,}")
 with kpi_cols[3]:
     st.metric("Lobbying Firms", f"{unique_registrants:,}")
+
+# --- LOBBYING SURGE ALERTS ---
+st.markdown("---")
+st.subheader("Lobbying Surge Alerts")
+try:
+    # Find companies with QoQ increases > 25%
+    surge_query = pd.read_sql_query(
+        """WITH recent AS (
+            SELECT client_name, client_ticker, filing_year, filing_period, SUM(amount) as total
+            FROM lobbying_filings
+            WHERE amount IS NOT NULL
+            GROUP BY client_name, client_ticker, filing_year, filing_period
+            ORDER BY filing_year DESC, filing_period DESC
+        )
+        SELECT r1.client_name, r1.client_ticker, r1.total as current_spend, r2.total as prior_spend,
+               (r1.total - r2.total) * 1.0 / r2.total as qoq_change
+        FROM recent r1
+        INNER JOIN recent r2 ON r1.client_name = r2.client_name
+            AND (r1.filing_year > r2.filing_year
+                 OR (r1.filing_year = r2.filing_year AND r1.filing_period > r2.filing_period))
+        WHERE r2.total > 0
+          AND (r1.total - r2.total) * 1.0 / r2.total > 0.25
+        ORDER BY qoq_change DESC
+        LIMIT 5""",
+        conn,
+    )
+except Exception:
+    surge_query = pd.DataFrame()
+
+if not surge_query.empty:
+    for _, row in surge_query.iterrows():
+        ticker = f" ({row['client_ticker']})" if row['client_ticker'] else ""
+        st.warning(
+            f"**{row['client_name']}{ticker}** lobbying spend up "
+            f"{row['qoq_change']:+.0%} QoQ — "
+            f"${row['prior_spend']:,.0f} → ${row['current_spend']:,.0f}"
+        )
+else:
+    st.caption("No companies with >25% QoQ lobbying spend increases detected.")
 
 # --- SPEND OVER TIME + QOQ HEATMAP ---
 st.markdown("---")
@@ -131,7 +178,6 @@ else:
 
 # --- FILINGS TABLE ---
 st.markdown("---")
-st.subheader("Lobbying Filings")
 
 try:
     filings_df = pd.read_sql_query(
@@ -146,46 +192,47 @@ except Exception:
     filings_df = pd.DataFrame()
 
 if not filings_df.empty:
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        ticker_filter = st.multiselect(
-            "Filter by Ticker",
-            sorted(filings_df["client_ticker"].dropna().unique().tolist()),
-            key="lobby_ticker_filter",
+    with st.expander(f"Lobbying Filings ({len(filings_df)})"):
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            ticker_filter = st.multiselect(
+                "Filter by Ticker",
+                sorted(filings_df["client_ticker"].dropna().unique().tolist()),
+                key="lobby_ticker_filter",
+            )
+        with col_f2:
+            issue_search = st.text_input("Search issues", key="lobby_issue_search")
+
+        display_df = filings_df.copy()
+        if ticker_filter:
+            display_df = display_df[display_df["client_ticker"].isin(ticker_filter)]
+        if issue_search:
+            display_df = display_df[
+                display_df["specific_issues"].fillna("").str.contains(issue_search, case=False)
+            ]
+
+        # Format amount
+        display_df["amount"] = display_df["amount"].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
+        display_df["period"] = display_df["filing_year"].astype(str) + " " + display_df["filing_period"].fillna("")
+
+        # Truncate issues for display
+        display_df["specific_issues"] = display_df["specific_issues"].apply(
+            lambda x: x[:150] + "..." if isinstance(x, str) and len(x) > 150 else x
         )
-    with col_f2:
-        issue_search = st.text_input("Search issues", key="lobby_issue_search")
 
-    display_df = filings_df.copy()
-    if ticker_filter:
-        display_df = display_df[display_df["client_ticker"].isin(ticker_filter)]
-    if issue_search:
-        display_df = display_df[
-            display_df["specific_issues"].fillna("").str.contains(issue_search, case=False)
-        ]
-
-    # Format amount
-    display_df["amount"] = display_df["amount"].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
-    display_df["period"] = display_df["filing_year"].astype(str) + " " + display_df["filing_period"].fillna("")
-
-    # Truncate issues for display
-    display_df["specific_issues"] = display_df["specific_issues"].apply(
-        lambda x: x[:150] + "..." if isinstance(x, str) and len(x) > 150 else x
-    )
-
-    st.dataframe(
-        display_df[["client_name", "client_ticker", "amount", "period", "specific_issues", "government_entities"]],
-        column_config={
-            "client_name": "Client",
-            "client_ticker": "Ticker",
-            "amount": "Amount",
-            "period": "Period",
-            "specific_issues": "Issues",
-            "government_entities": "Gov Entities",
-        },
-        use_container_width=True,
-        height=400,
-    )
+        st.dataframe(
+            display_df[["client_name", "client_ticker", "amount", "period", "specific_issues", "government_entities"]],
+            column_config={
+                "client_name": "Client",
+                "client_ticker": "Ticker",
+                "amount": "Amount",
+                "period": "Period",
+                "specific_issues": "Issues",
+                "government_entities": "Gov Entities",
+            },
+            use_container_width=True,
+            height=400,
+        )
 else:
     st.info("No lobbying filings found. Run collectors to populate.")
 

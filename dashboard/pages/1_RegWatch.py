@@ -6,6 +6,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import sqlite3
+from datetime import datetime, timedelta
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -16,11 +18,16 @@ from dashboard.components.event_card import (
     render_impact_badge,
     format_event_type,
     TRADE_ACTION_OPTIONS,
+    render_event_with_context,
+    render_so_what,
 )
 from dashboard.components.price_chart import render_price_chart
+from dashboard.components.color_system import render_impact_indicator, IMPACT_SEVERITY
+from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, tooltip
 
 st.title("RegWatch")
 st.caption("Regulatory & political event feed with sector mapping")
+inject_tooltip_css()
 
 from dashboard.components.freshness import render_freshness
 render_freshness("regulatory_events", "publication_date", "Regulatory Events")
@@ -73,6 +80,54 @@ if filters["tickers"]:
     )
     events_df = events_df[mask]
 
+# --- REGULATORY WEATHER SUMMARY ---
+@st.cache_data(ttl=300)
+def _load_weather_stats() -> dict:
+    """Query DB for last-7-day regulatory activity summary."""
+    conn = sqlite3.connect(DB_PATH)
+    seven_days_ago = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+    try:
+        rows = conn.execute(
+            """SELECT sectors, impact_score FROM regulatory_events
+               WHERE publication_date >= ?""",
+            (seven_days_ago,),
+        ).fetchall()
+    except Exception:
+        rows = []
+    conn.close()
+
+    total = len(rows)
+    high_impact = sum(1 for _, score in rows if (score or 0) >= 4)
+    sector_counts: dict[str, int] = {}
+    for sectors_str, _ in rows:
+        if sectors_str:
+            for s in sectors_str.split(","):
+                s = s.strip()
+                if s:
+                    sector_counts[s] = sector_counts.get(s, 0) + 1
+    return {"total": total, "high_impact": high_impact, "sector_counts": sector_counts}
+
+
+weather = _load_weather_stats()
+if weather["total"] > 0:
+    sorted_sectors = sorted(weather["sector_counts"].items(), key=lambda x: x[1], reverse=True)
+    busiest = sorted_sectors[0] if sorted_sectors else None
+    quietest = sorted_sectors[-1] if len(sorted_sectors) > 1 else None
+
+    weather_parts = [f"**This week:** {weather['total']} new events, {weather['high_impact']} high-impact."]
+    if busiest:
+        weather_parts.append(f"**{busiest[0]}** seeing unusual activity ({busiest[1]} events).")
+    if quietest and quietest[0] != (busiest[0] if busiest else ""):
+        weather_parts.append(f"**{quietest[0]}** quiet.")
+
+    st.markdown(
+        f"""<div style="background:linear-gradient(135deg, rgba(59,130,246,0.06), rgba(139,92,246,0.06));
+            border:1px solid rgba(59,130,246,0.15); border-radius:8px; padding:12px 16px; margin-bottom:12px;">
+            <span style="font-size:14px; color:#334155;">{"  ".join(weather_parts)}</span>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
 # --- KPI ROW ---
 st.markdown("---")
 kpi_cols = st.columns(4)
@@ -80,7 +135,7 @@ with kpi_cols[0]:
     st.metric("Total Events", len(events_df))
 with kpi_cols[1]:
     high_impact = len(events_df[events_df["impact_score"] >= 4])
-    st.metric("High Impact (4+)", high_impact)
+    st.metric("High Impact (4+)", high_impact, help=tooltip("Impact Score"))
 with kpi_cols[2]:
     unique_sectors = set()
     for s in events_df["sectors"].dropna():
@@ -127,23 +182,24 @@ st.subheader(f"Regulatory Events ({len(events_df)})")
 if events_df.empty:
     st.info("No events match your filters. Try widening the date range or removing filters.")
 else:
-    # Display table
-    display_df = events_df[
-        ["publication_date", "event_type", "agency", "title", "sectors", "tickers", "impact_score", "trade_action"]
-    ].copy()
-    display_df["event_type"] = display_df["event_type"].apply(format_event_type)
-    display_df["title"] = display_df["title"].apply(lambda x: str(x)[:100] if x else "")
-    display_df.columns = ["Date", "Type", "Agency", "Title", "Sectors", "Tickers", "Impact", "Action"]
+    # Display table inside expander
+    with st.expander(f"Full Event Table ({len(events_df)} events)"):
+        display_df = events_df[
+            ["publication_date", "event_type", "agency", "title", "sectors", "tickers", "impact_score", "trade_action"]
+        ].copy()
+        display_df["event_type"] = display_df["event_type"].apply(format_event_type)
+        display_df["title"] = display_df["title"].apply(lambda x: str(x)[:100] if x else "")
+        display_df.columns = ["Date", "Type", "Agency", "Title", "Sectors", "Tickers", "Impact", "Action"]
 
-    # Sortable table
-    st.dataframe(
-        display_df,
-        use_container_width=True,
-        height=400,
-        column_config={
-            "Impact": st.column_config.NumberColumn(format="%d/5"),
-        },
-    )
+        # Sortable table
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            height=400,
+            column_config={
+                "Impact": st.column_config.NumberColumn(format="%d/5"),
+            },
+        )
 
     # --- EVENT DETAIL EXPANDER ---
     st.markdown("---")
@@ -177,6 +233,14 @@ else:
 
             st.markdown(f"**Sectors:** {event['sectors'] or 'None detected'}")
             st.markdown(f"**Tickers:** {event['tickers'] or 'None detected'}")
+
+            # "So what?" interpretation for high-impact events
+            if (event["impact_score"] or 0) >= 3:
+                conn_ctx = sqlite3.connect(DB_PATH)
+                so_what = render_so_what(event.to_dict(), conn_ctx)
+                conn_ctx.close()
+                if so_what:
+                    st.markdown(f"**So what?** {so_what}")
 
             if event["summary"]:
                 with st.expander("Full Summary"):

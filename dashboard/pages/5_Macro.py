@@ -14,9 +14,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from config import DB_PATH
+from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, render_glossary_term, tooltip
 
 st.title("Macro & Fed Dashboard")
 st.caption("Hedgeye-style regime classifier, key economic indicators, and FOMC tracker")
+inject_tooltip_css()
 
 from dashboard.components.freshness import render_freshness
 render_freshness("macro_indicators", "date", "Macro Data")
@@ -155,6 +157,21 @@ else:
     with col_bias:
         st.metric("Equity Bias", regime_info.get("equity_bias", "N/A").replace("_", " ").title())
 
+    # What this means for your portfolio
+    etf_names = {
+        "XLK": "Technology", "XLY": "Consumer Discretionary", "XLE": "Energy",
+        "XLB": "Materials", "XLF": "Financials", "XLI": "Industrials",
+        "XLP": "Consumer Staples", "XLU": "Utilities",
+    }
+    favored_names = [f"{etf_names.get(s, s)} ({s})" for s in regime_info.get("favored_sectors", [])]
+    avoid_names = [f"{etf_names.get(s, s)} ({s})" for s in regime_info.get("avoid_sectors", [])]
+    if favored_names or avoid_names:
+        st.markdown(
+            f"**Lean into:** {', '.join(favored_names) or 'N/A'} — "
+            f"these sectors historically outperform during {QUADRANT_LABELS.get(q, 'this regime')}. "
+            f"**Reduce exposure to:** {', '.join(avoid_names) or 'N/A'}."
+        )
+
 # ── Row 2: Key Indicators ─────────────────────────────────────────────
 st.markdown("---")
 st.subheader("Key Indicators")
@@ -191,7 +208,8 @@ for i, (series_id, label, col_name, fmt) in enumerate(indicators):
             if current_val is not None and prev_val is not None:
                 delta = float(current_val) - float(prev_val)
 
-        st.metric(label, display_val, delta=f"{delta:+.3f}" if delta is not None else None)
+        help_text = tooltip("VIX") if series_id == "VIXCLS" else tooltip("Yield Curve Spread") if series_id == "T10Y2Y" else None
+        st.metric(label, display_val, delta=f"{delta:+.3f}" if delta is not None else None, help=help_text)
 
         # Sparkline
         if len(df) >= 3 and col_name in df.columns:
@@ -294,6 +312,21 @@ with fomc_col1:
         next_date = datetime.strptime(next_meeting["event_date"], "%Y-%m-%d").date()
         days_until = (next_date - date.today()).days
         st.metric("Next FOMC Meeting", next_meeting["event_date"], delta=f"{days_until} days away")
+
+        # Generate what to expect narrative
+        narrative_parts = [f"Next meeting: {next_meeting['event_date']} ({days_until} days away)."]
+        # Check prediction markets for hold probability
+        try:
+            pred_conn = sqlite3.connect(DB_PATH)
+            pred = pred_conn.execute(
+                "SELECT current_price FROM prediction_markets WHERE category='fomc' AND question_text LIKE '%no change%' LIMIT 1"
+            ).fetchone()
+            pred_conn.close()
+            if pred:
+                narrative_parts.append(f"Prediction markets price a {pred[0]:.0%} chance of hold.")
+        except Exception:
+            pass
+        st.caption(" ".join(narrative_parts))
     else:
         st.info("No upcoming FOMC meetings in the calendar.")
 
@@ -332,33 +365,33 @@ with fomc_col2:
 
 # FOMC Events Table
 if not past_meetings.empty:
-    st.markdown("**Recent FOMC Events**")
-    display_cols = ["event_date", "event_type", "rate_decision", "hawkish_dovish_score",
-                    "spx_return_day", "spx_return_2day"]
-    available = [c for c in display_cols if c in past_meetings.columns]
-    table_df = past_meetings[available].head(10).copy()
+    with st.expander(f"Recent FOMC Events ({len(past_meetings.head(10))})"):
+        display_cols = ["event_date", "event_type", "rate_decision", "hawkish_dovish_score",
+                        "spx_return_day", "spx_return_2day"]
+        available = [c for c in display_cols if c in past_meetings.columns]
+        table_df = past_meetings[available].head(10).copy()
 
-    # Format columns
-    for col in ["spx_return_day", "spx_return_2day"]:
-        if col in table_df.columns:
-            table_df[col] = table_df[col].apply(
-                lambda x: f"{x:+.2%}" if pd.notna(x) else ""
+        # Format columns
+        for col in ["spx_return_day", "spx_return_2day"]:
+            if col in table_df.columns:
+                table_df[col] = table_df[col].apply(
+                    lambda x: f"{x:+.2%}" if pd.notna(x) else ""
+                )
+        if "hawkish_dovish_score" in table_df.columns:
+            table_df["hawkish_dovish_score"] = table_df["hawkish_dovish_score"].apply(
+                lambda x: f"{x:+.2f}" if pd.notna(x) else ""
             )
-    if "hawkish_dovish_score" in table_df.columns:
-        table_df["hawkish_dovish_score"] = table_df["hawkish_dovish_score"].apply(
-            lambda x: f"{x:+.2f}" if pd.notna(x) else ""
-        )
 
-    rename = {
-        "event_date": "Date",
-        "event_type": "Type",
-        "rate_decision": "Decision",
-        "hawkish_dovish_score": "H/D Score",
-        "spx_return_day": "SPX Day Return",
-        "spx_return_2day": "SPX 2-Day Return",
-    }
-    table_df = table_df.rename(columns=rename)
-    st.dataframe(table_df, use_container_width=True, hide_index=True)
+        rename = {
+            "event_date": "Date",
+            "event_type": "Type",
+            "rate_decision": "Decision",
+            "hawkish_dovish_score": "H/D Score",
+            "spx_return_day": "SPX Day Return",
+            "spx_return_2day": "SPX 2-Day Return",
+        }
+        table_df = table_df.rename(columns=rename)
+        st.dataframe(table_df, use_container_width=True, hide_index=True)
 
 # Statement diff for latest meeting
 if not past_meetings.empty:

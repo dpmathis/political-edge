@@ -14,9 +14,12 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from config import DB_PATH
+from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, tooltip
+from dashboard.components.signal_card import render_signal_card
 
 st.title("Signals & Paper Trading")
 st.caption("Trading signal management and paper portfolio tracking")
+inject_tooltip_css()
 
 from dashboard.components.freshness import render_freshness
 render_freshness("trading_signals", "signal_date", "Trading Signals")
@@ -133,75 +136,85 @@ with ctrl_col3:
 # ── Row 2: Signals Table ─────────────────────────────────────────────
 signals_df = load_signals(status_filter)
 
+# Show signal cards for pending/active signals
+pending_active = signals_df[signals_df["status"].isin(["pending", "active"])] if not signals_df.empty else pd.DataFrame()
+if not pending_active.empty:
+    st.subheader("Active Signal Cards")
+    conn_cards = sqlite3.connect(DB_PATH)
+    for _, sig in pending_active.head(5).iterrows():
+        render_signal_card(sig.to_dict(), show_evidence=True, conn=conn_cards)
+    conn_cards.close()
+    if len(pending_active) > 5:
+        st.caption(f"Showing top 5 of {len(pending_active)} active signals.")
+
 if signals_df.empty:
     st.info("No trading signals yet. Click 'Generate Signals' to evaluate all signal rules.")
 else:
-    st.markdown(f"**{len(signals_df)} signals**")
+    with st.expander(f"All Signals Table ({len(signals_df)})"):
+        # Format for display
+        display_df = signals_df.copy()
 
-    # Format for display
-    display_df = signals_df.copy()
-
-    for col in ["pnl_percent"]:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(
-                lambda x: f"{x:+.2%}" if pd.notna(x) else ""
+        for col in ["pnl_percent"]:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(
+                    lambda x: f"{x:+.2%}" if pd.notna(x) else ""
+                )
+        for col in ["pnl_dollars"]:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(
+                    lambda x: f"${x:+,.2f}" if pd.notna(x) else ""
+                )
+        if "position_size_modifier" in display_df.columns:
+            display_df["position_size_modifier"] = display_df["position_size_modifier"].apply(
+                lambda x: f"{x:.1f}x" if pd.notna(x) else ""
             )
-    for col in ["pnl_dollars"]:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(
-                lambda x: f"${x:+,.2f}" if pd.notna(x) else ""
-            )
-    if "position_size_modifier" in display_df.columns:
-        display_df["position_size_modifier"] = display_df["position_size_modifier"].apply(
-            lambda x: f"{x:.1f}x" if pd.notna(x) else ""
-        )
 
-    # Format new trade parameter columns
-    for col in ["expected_car", "historical_win_rate"]:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(
-                lambda x: f"{x:+.2%}" if pd.notna(x) else ""
+        # Format new trade parameter columns
+        for col in ["expected_car", "historical_win_rate"]:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(
+                    lambda x: f"{x:+.2%}" if pd.notna(x) else ""
+                )
+        if "suggested_position_size" in display_df.columns:
+            display_df["suggested_position_size"] = display_df["suggested_position_size"].apply(
+                lambda x: f"{x:.1%}" if pd.notna(x) else ""
             )
-    if "suggested_position_size" in display_df.columns:
-        display_df["suggested_position_size"] = display_df["suggested_position_size"].apply(
-            lambda x: f"{x:.1%}" if pd.notna(x) else ""
-        )
-    for col in ["stop_loss_price", "take_profit_price"]:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(
-                lambda x: f"${x:,.2f}" if pd.notna(x) else ""
+        for col in ["stop_loss_price", "take_profit_price"]:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(
+                    lambda x: f"${x:,.2f}" if pd.notna(x) else ""
+                )
+        if "historical_p_value" in display_df.columns:
+            display_df["historical_p_value"] = display_df["historical_p_value"].apply(
+                lambda x: f"{x:.3f}" if pd.notna(x) else ""
             )
-    if "historical_p_value" in display_df.columns:
-        display_df["historical_p_value"] = display_df["historical_p_value"].apply(
-            lambda x: f"{x:.3f}" if pd.notna(x) else ""
-        )
 
-    show_cols = [
-        "signal_date", "ticker", "signal_type", "direction", "conviction",
-        "position_size_modifier", "status", "expected_car", "entry_price",
-        "stop_loss_price", "take_profit_price", "pnl_percent",
-        "holding_days", "rationale",
-    ]
-    available = [c for c in show_cols if c in display_df.columns]
+        show_cols = [
+            "signal_date", "ticker", "signal_type", "direction", "conviction",
+            "position_size_modifier", "status", "expected_car", "entry_price",
+            "stop_loss_price", "take_profit_price", "pnl_percent",
+            "holding_days", "rationale",
+        ]
+        available = [c for c in show_cols if c in display_df.columns]
 
-    rename = {
-        "signal_date": "Date",
-        "ticker": "Ticker",
-        "signal_type": "Type",
-        "direction": "Direction",
-        "conviction": "Conviction",
-        "position_size_modifier": "Macro Mod",
-        "status": "Status",
-        "expected_car": "Exp CAR",
-        "entry_price": "Entry $",
-        "stop_loss_price": "Stop $",
-        "take_profit_price": "TP $",
-        "pnl_percent": "PnL %",
-        "holding_days": "Days",
-        "rationale": "Rationale",
-    }
-    display_df = display_df[available].rename(columns=rename)
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+        rename = {
+            "signal_date": "Date",
+            "ticker": "Ticker",
+            "signal_type": "Type",
+            "direction": "Direction",
+            "conviction": "Conviction",
+            "position_size_modifier": "Macro Mod",
+            "status": "Status",
+            "expected_car": "Exp CAR",
+            "entry_price": "Entry $",
+            "stop_loss_price": "Stop $",
+            "take_profit_price": "TP $",
+            "pnl_percent": "PnL %",
+            "holding_days": "Days",
+            "rationale": "Rationale",
+        }
+        display_df = display_df[available].rename(columns=rename)
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
     # Historical performance context
     with st.expander("Signal Historical Performance"):
@@ -313,11 +326,11 @@ else:
 
     with perf_cols[0]:
         win_rate = (closed_signals["pnl_percent"] > 0).mean() if "pnl_percent" in closed_signals.columns else 0
-        st.metric("Win Rate", f"{win_rate:.1%}")
+        st.metric("Win Rate", f"{win_rate:.1%}", help=tooltip("Win Rate"))
 
     with perf_cols[1]:
         avg_pnl = closed_signals["pnl_percent"].mean() if "pnl_percent" in closed_signals.columns else 0
-        st.metric("Avg PnL", f"{avg_pnl:+.2%}" if pd.notna(avg_pnl) else "N/A")
+        st.metric("Avg PnL", f"{avg_pnl:+.2%}" if pd.notna(avg_pnl) else "N/A", help=tooltip("CAR"))
 
     with perf_cols[2]:
         total_pnl = closed_signals["pnl_dollars"].sum() if "pnl_dollars" in closed_signals.columns else 0
@@ -362,6 +375,24 @@ else:
                 fig.add_hline(y=0, line_dash="dash", line_color="gray")
                 fig.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), yaxis_title="Cumulative PnL ($)")
                 st.plotly_chart(fig, use_container_width=True)
+
+    # Signal Quality Report
+    if not closed_signals.empty and "signal_type" in closed_signals.columns:
+        st.subheader("Signal Quality Report")
+        quality = closed_signals.groupby("signal_type").agg(
+            win_rate=("pnl_percent", lambda x: (x > 0).mean()),
+            avg_pnl=("pnl_percent", "mean"),
+            n_trades=("id", "count"),
+        ).reset_index()
+        quality["verdict"] = quality.apply(
+            lambda r: "Keep using" if r["win_rate"] > 0.55 and r["avg_pnl"] > 0
+            else "Marginal" if r["win_rate"] > 0.45
+            else "Review rules", axis=1
+        )
+        quality["win_rate"] = quality["win_rate"].apply(lambda x: f"{x:.0%}")
+        quality["avg_pnl"] = quality["avg_pnl"].apply(lambda x: f"{x:+.2%}")
+        quality.columns = ["Signal Type", "Win Rate", "Avg PnL", "N Trades", "Verdict"]
+        st.dataframe(quality, use_container_width=True, hide_index=True)
 
 # ── Row 4: Recent Trades ─────────────────────────────────────────────
 trades_df = load_paper_trades()

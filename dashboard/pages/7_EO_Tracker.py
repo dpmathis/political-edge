@@ -19,20 +19,26 @@ from analysis.eo_classifier import (
     classify_eo,
 )
 from config import DB_PATH
+from dashboard.components.color_system import render_direction_badge, CONVICTION_COLORS
+from dashboard.components.glossary import inject_tooltip_css, render_glossary_term, tooltip
 
 st.title("Executive Order Tracker")
 st.caption("Real-time topic classification with evidence-based trading signals")
+inject_tooltip_css()
 
 conn = sqlite3.connect(DB_PATH)
 
 # ---- Load and classify EOs ----
-eos = pd.read_sql_query(
+try:
+    eos = pd.read_sql_query(
     """SELECT id, publication_date, title, url
        FROM regulatory_events
        WHERE event_type = 'executive_order'
        ORDER BY publication_date DESC""",
     conn,
-)
+    )
+except Exception:
+    eos = pd.DataFrame()
 
 if eos.empty:
     st.info("No executive orders found. Run collectors to populate.")
@@ -112,16 +118,29 @@ with col_right:
     evidence_data = []
     for topic, car in TOPIC_EXPECTED_CAR.items():
         confidence = TOPIC_CONFIDENCE.get(topic, "low")
+        n = TOPIC_SAMPLE_SIZE.get(topic, 0)
         is_tradeable = confidence in ("high", "medium")
+        # Evidence strength indicator
+        if isinstance(n, int) and n > 30:
+            strength = "Strong"
+        elif isinstance(n, int) and n > 15:
+            strength = "Moderate"
+        else:
+            strength = "Weak"
         evidence_data.append({
             "Topic": topic.replace("_", " ").title(),
             "Expected CAR": f"{car:+.2%}",
             "Confidence": confidence.upper(),
-            "N": TOPIC_SAMPLE_SIZE.get(topic, "?"),
+            "N": n,
+            "Evidence": strength,
             "Tickers": ", ".join(TOPIC_TICKERS.get(topic, [])),
             "Tradeable": "Yes" if is_tradeable else "No",
         })
     st.dataframe(pd.DataFrame(evidence_data), use_container_width=True, hide_index=True)
+    st.caption(
+        f"{render_glossary_term('CAR', 'CAR = Cumulative Abnormal Return')} | "
+        f"Strong evidence: N>30, Moderate: N>15, Weak: N<15"
+    )
 
 # ---- Regulatory Shock Alerts ----
 st.markdown("---")
@@ -146,7 +165,6 @@ except Exception as e:
 
 # ---- EO Timeline Table ----
 st.markdown("---")
-st.subheader("Executive Order Timeline")
 
 topic_options = [t for t in eos["topic"].unique() if t != "other"]
 filter_cols = st.columns([2, 1])
@@ -163,24 +181,25 @@ else:
 if tradeable_only:
     filtered = filtered[filtered["is_tradeable"]]
 
-display_df = filtered[["publication_date", "topic", "direction", "confidence", "title"]].copy()
-display_df["topic"] = display_df["topic"].str.replace("_", " ").str.title()
-display_df["confidence"] = display_df["confidence"].fillna("").str.upper()
-display_df["direction"] = display_df["direction"].fillna("")
+with st.expander(f"Executive Order Timeline ({len(filtered)} orders)"):
+    display_df = filtered[["publication_date", "topic", "direction", "confidence", "title"]].copy()
+    display_df["topic"] = display_df["topic"].str.replace("_", " ").str.title()
+    display_df["confidence"] = display_df["confidence"].fillna("").str.upper()
+    display_df["direction"] = display_df["direction"].fillna("")
 
-st.dataframe(
-    display_df,
-    column_config={
-        "publication_date": "Date",
-        "topic": "Topic",
-        "direction": "Direction",
-        "confidence": "Confidence",
-        "title": "Title",
-    },
-    use_container_width=True,
-    hide_index=True,
-    height=400,
-)
+    st.dataframe(
+        display_df,
+        column_config={
+            "publication_date": "Date",
+            "topic": "Topic",
+            "direction": "Direction",
+            "confidence": "Confidence",
+            "title": "Title",
+        },
+        use_container_width=True,
+        hide_index=True,
+        height=400,
+    )
 
 # ---- EO Detail ----
 if not filtered.empty:
