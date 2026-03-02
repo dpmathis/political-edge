@@ -26,10 +26,13 @@ conn = sqlite3.connect(DB_PATH)
 @st.cache_data(ttl=300)
 def _load_watchlist():
     c = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query(
-        "SELECT ticker, company_name, sector, subsector, active FROM watchlist ORDER BY sector, ticker",
-        c,
-    )
+    try:
+        df = pd.read_sql_query(
+            "SELECT ticker, company_name, sector, subsector, active FROM watchlist ORDER BY sector, ticker",
+            c,
+        )
+    except Exception:
+        df = pd.DataFrame()
     c.close()
     return df
 
@@ -100,16 +103,19 @@ if selected_ticker:
     # --- 2. REGULATORY EVENTS ---
     st.markdown("---")
     st.subheader("Regulatory Events")
-    reg_events = pd.read_sql_query(
-        """SELECT publication_date, source, event_type, title, impact_score, agency
-           FROM regulatory_events
-           WHERE tickers LIKE ?
-             AND publication_date >= ?
-           ORDER BY publication_date DESC
-           LIMIT 10""",
-        conn,
-        params=(f"%{selected_ticker}%", start_180),
-    )
+    try:
+        reg_events = pd.read_sql_query(
+            """SELECT publication_date, source, event_type, title, impact_score, agency
+               FROM regulatory_events
+               WHERE tickers LIKE ?
+                 AND publication_date >= ?
+               ORDER BY publication_date DESC
+               LIMIT 10""",
+            conn,
+            params=(f"%{selected_ticker}%", start_180),
+        )
+    except Exception:
+        reg_events = pd.DataFrame()
     if not reg_events.empty:
         reg_events.columns = ["Date", "Source", "Type", "Title", "Impact", "Agency"]
         reg_events["Title"] = reg_events["Title"].apply(
@@ -122,16 +128,19 @@ if selected_ticker:
     # --- 3. FDA EVENTS ---
     st.markdown("---")
     st.subheader("FDA Events")
-    fda_events = pd.read_sql_query(
-        """SELECT event_date, event_type, drug_name, outcome, abnormal_return
-           FROM fda_events
-           WHERE ticker = ?
-             AND event_date >= ?
-           ORDER BY event_date DESC
-           LIMIT 10""",
-        conn,
-        params=(selected_ticker, start_180),
-    )
+    try:
+        fda_events = pd.read_sql_query(
+            """SELECT event_date, event_type, drug_name, outcome, abnormal_return
+               FROM fda_events
+               WHERE ticker = ?
+                 AND event_date >= ?
+               ORDER BY event_date DESC
+               LIMIT 10""",
+            conn,
+            params=(selected_ticker, start_180),
+        )
+    except Exception:
+        fda_events = pd.DataFrame()
     if not fda_events.empty:
         fda_events.columns = ["Date", "Event Type", "Drug", "Outcome", "AR"]
         fda_events["AR"] = fda_events["AR"].apply(lambda x: f"{x:+.2%}" if pd.notna(x) else "")
@@ -142,17 +151,20 @@ if selected_ticker:
     # --- 4. LOBBYING ACTIVITY ---
     st.markdown("---")
     st.subheader("Lobbying Activity")
-    lobbying_df = pd.read_sql_query(
-        """SELECT filing_year, filing_period, SUM(amount) as total_amount,
-                  GROUP_CONCAT(DISTINCT specific_issues, ' | ') as issues
-           FROM lobbying_filings
-           WHERE client_ticker = ?
-           GROUP BY filing_year, filing_period
-           ORDER BY filing_year DESC, filing_period DESC
-           LIMIT 4""",
-        conn,
-        params=(selected_ticker,),
-    )
+    try:
+        lobbying_df = pd.read_sql_query(
+            """SELECT filing_year, filing_period, SUM(amount) as total_amount,
+                      GROUP_CONCAT(DISTINCT specific_issues, ' | ') as issues
+               FROM lobbying_filings
+               WHERE client_ticker = ?
+               GROUP BY filing_year, filing_period
+               ORDER BY filing_year DESC, filing_period DESC
+               LIMIT 4""",
+            conn,
+            params=(selected_ticker,),
+        )
+    except Exception:
+        lobbying_df = pd.DataFrame()
     if not lobbying_df.empty:
         lobbying_df["Period"] = lobbying_df["filing_year"].astype(str) + " " + lobbying_df["filing_period"].fillna("")
         lobbying_df["Amount"] = lobbying_df["total_amount"].apply(
@@ -185,16 +197,19 @@ if selected_ticker:
     # --- 5. CONGRESSIONAL TRADES ---
     st.markdown("---")
     st.subheader("Congressional Trades")
-    trades_df = pd.read_sql_query(
-        """SELECT trade_date, politician, party, trade_type, amount_range
-           FROM congress_trades
-           WHERE ticker = ?
-             AND trade_date >= ?
-           ORDER BY trade_date DESC
-           LIMIT 10""",
-        conn,
-        params=(selected_ticker, start_180),
-    )
+    try:
+        trades_df = pd.read_sql_query(
+            """SELECT trade_date, politician, party, trade_type, amount_range
+               FROM congress_trades
+               WHERE ticker = ?
+                 AND trade_date >= ?
+               ORDER BY trade_date DESC
+               LIMIT 10""",
+            conn,
+            params=(selected_ticker, start_180),
+        )
+    except Exception:
+        trades_df = pd.DataFrame()
     if not trades_df.empty:
         trades_df.columns = ["Date", "Politician", "Party", "Type", "Amount Range"]
         st.dataframe(trades_df, use_container_width=True, hide_index=True)
@@ -204,15 +219,18 @@ if selected_ticker:
     # --- 6. ACTIVE SIGNALS (placeholder for Phase 5) ---
     st.markdown("---")
     st.subheader("Trading Signals")
-    signals_df = pd.read_sql_query(
-        """SELECT signal_date, signal_type, direction, conviction, status, pnl_percent
-           FROM trading_signals
-           WHERE ticker = ?
-           ORDER BY signal_date DESC
-           LIMIT 10""",
-        conn,
-        params=(selected_ticker,),
-    )
+    try:
+        signals_df = pd.read_sql_query(
+            """SELECT signal_date, signal_type, direction, conviction, status, pnl_percent
+               FROM trading_signals
+               WHERE ticker = ?
+               ORDER BY signal_date DESC
+               LIMIT 10""",
+            conn,
+            params=(selected_ticker,),
+        )
+    except Exception:
+        signals_df = pd.DataFrame()
     if not signals_df.empty:
         signals_df.columns = ["Date", "Signal Type", "Direction", "Conviction", "Status", "PnL %"]
         signals_df["PnL %"] = signals_df["PnL %"].apply(lambda x: f"{x:+.2%}" if pd.notna(x) else "")

@@ -28,9 +28,12 @@ QUADRANT_LABELS = {1: "Goldilocks", 2: "Reflation", 3: "Stagflation", 4: "Deflat
 @st.cache_data(ttl=300)
 def load_regime_data():
     conn = sqlite3.connect(DB_PATH)
-    regimes = pd.read_sql_query(
-        "SELECT * FROM macro_regimes ORDER BY date DESC", conn
-    )
+    try:
+        regimes = pd.read_sql_query(
+            "SELECT * FROM macro_regimes ORDER BY date DESC", conn
+        )
+    except Exception:
+        regimes = pd.DataFrame()
     conn.close()
     return regimes
 
@@ -38,13 +41,16 @@ def load_regime_data():
 @st.cache_data(ttl=300)
 def load_macro_indicators(series_id: str, limit: int = 60):
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query(
-        """SELECT date, value, rate_of_change_3m, rate_of_change_6m, rate_of_change_12m
-           FROM macro_indicators WHERE series_id = ?
-           ORDER BY date DESC LIMIT ?""",
-        conn,
-        params=(series_id, limit),
-    )
+    try:
+        df = pd.read_sql_query(
+            """SELECT date, value, rate_of_change_3m, rate_of_change_6m, rate_of_change_12m
+               FROM macro_indicators WHERE series_id = ?
+               ORDER BY date DESC LIMIT ?""",
+            conn,
+            params=(series_id, limit),
+        )
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     if not df.empty:
         df = df.sort_values("date")
@@ -54,9 +60,12 @@ def load_macro_indicators(series_id: str, limit: int = 60):
 @st.cache_data(ttl=300)
 def load_fomc_events():
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query(
-        "SELECT * FROM fomc_events ORDER BY event_date DESC", conn
-    )
+    try:
+        df = pd.read_sql_query(
+            "SELECT * FROM fomc_events ORDER BY event_date DESC", conn
+        )
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     return df
 
@@ -67,10 +76,13 @@ def load_yield_curve_data():
     conn = sqlite3.connect(DB_PATH)
     data = {}
     for series_id, label in [("DGS2", "2Y"), ("DGS10", "10Y"), ("DFF", "Fed Funds")]:
-        row = conn.execute(
-            "SELECT date, value FROM macro_indicators WHERE series_id = ? ORDER BY date DESC LIMIT 1",
-            (series_id,),
-        ).fetchone()
+        try:
+            row = conn.execute(
+                "SELECT date, value FROM macro_indicators WHERE series_id = ? ORDER BY date DESC LIMIT 1",
+                (series_id,),
+            ).fetchone()
+        except Exception:
+            row = None
         if row:
             data[label] = {"date": row[0], "value": row[1]}
     conn.close()

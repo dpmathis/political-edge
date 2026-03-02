@@ -214,10 +214,13 @@ with bt_col1:
 
 with bt_col2:
     bt_conn = sqlite3.connect(DB_PATH)
-    recent_studies = bt_conn.execute(
-        """SELECT study_name, num_events, mean_car, p_value, win_rate, created_at
-           FROM event_studies ORDER BY created_at DESC LIMIT 10"""
-    ).fetchall()
+    try:
+        recent_studies = bt_conn.execute(
+            """SELECT study_name, num_events, mean_car, p_value, win_rate, created_at
+               FROM event_studies ORDER BY created_at DESC LIMIT 10"""
+        ).fetchall()
+    except Exception:
+        recent_studies = []
     bt_conn.close()
 
     if recent_studies:

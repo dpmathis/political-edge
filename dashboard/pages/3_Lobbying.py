@@ -23,16 +23,22 @@ render_freshness("lobbying_filings", "filing_year", "Lobbying Filings")
 conn = sqlite3.connect(DB_PATH)
 
 # --- KPI ROW ---
-total_filings = conn.execute("SELECT COUNT(*) FROM lobbying_filings").fetchone()[0]
-total_spend = conn.execute(
-    "SELECT COALESCE(SUM(amount), 0) FROM lobbying_filings"
-).fetchone()[0]
-unique_clients = conn.execute(
-    "SELECT COUNT(DISTINCT client_name) FROM lobbying_filings"
-).fetchone()[0]
-unique_registrants = conn.execute(
-    "SELECT COUNT(DISTINCT registrant_name) FROM lobbying_filings"
-).fetchone()[0]
+try:
+    total_filings = conn.execute("SELECT COUNT(*) FROM lobbying_filings").fetchone()[0]
+    total_spend = conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM lobbying_filings"
+    ).fetchone()[0]
+    unique_clients = conn.execute(
+        "SELECT COUNT(DISTINCT client_name) FROM lobbying_filings"
+    ).fetchone()[0]
+    unique_registrants = conn.execute(
+        "SELECT COUNT(DISTINCT registrant_name) FROM lobbying_filings"
+    ).fetchone()[0]
+except Exception:
+    total_filings = 0
+    total_spend = 0
+    unique_clients = 0
+    unique_registrants = 0
 
 kpi_cols = st.columns(4)
 with kpi_cols[0]:
@@ -48,15 +54,18 @@ with kpi_cols[3]:
 st.markdown("---")
 
 # Top spenders
-top_spenders = pd.read_sql_query(
-    """SELECT client_name, SUM(amount) as total_spend, COUNT(*) as filings
-       FROM lobbying_filings
-       WHERE amount IS NOT NULL AND amount > 0
-       GROUP BY client_name
-       ORDER BY total_spend DESC
-       LIMIT 20""",
-    conn,
-)
+try:
+    top_spenders = pd.read_sql_query(
+        """SELECT client_name, SUM(amount) as total_spend, COUNT(*) as filings
+           FROM lobbying_filings
+           WHERE amount IS NOT NULL AND amount > 0
+           GROUP BY client_name
+           ORDER BY total_spend DESC
+           LIMIT 20""",
+        conn,
+    )
+except Exception:
+    top_spenders = pd.DataFrame()
 
 if not top_spenders.empty:
     col_chart, col_period = st.columns(2)
@@ -83,14 +92,17 @@ if not top_spenders.empty:
 
     with col_period:
         st.subheader("Spending by Period")
-        period_spend = pd.read_sql_query(
-            """SELECT filing_year, filing_period, SUM(amount) as total_spend, COUNT(*) as filings
-               FROM lobbying_filings
-               WHERE amount IS NOT NULL
-               GROUP BY filing_year, filing_period
-               ORDER BY filing_year, filing_period""",
-            conn,
-        )
+        try:
+            period_spend = pd.read_sql_query(
+                """SELECT filing_year, filing_period, SUM(amount) as total_spend, COUNT(*) as filings
+                   FROM lobbying_filings
+                   WHERE amount IS NOT NULL
+                   GROUP BY filing_year, filing_period
+                   ORDER BY filing_year, filing_period""",
+                conn,
+            )
+        except Exception:
+            period_spend = pd.DataFrame()
         if not period_spend.empty:
             period_spend["period_label"] = (
                 period_spend["filing_year"].astype(str) + " " + period_spend["filing_period"].fillna("")
@@ -121,14 +133,17 @@ else:
 st.markdown("---")
 st.subheader("Lobbying Filings")
 
-filings_df = pd.read_sql_query(
-    """SELECT client_name, client_ticker, registrant_name, amount,
-              filing_year, filing_period, specific_issues, government_entities
-       FROM lobbying_filings
-       ORDER BY filing_year DESC, filing_period DESC, amount DESC
-       LIMIT 500""",
-    conn,
-)
+try:
+    filings_df = pd.read_sql_query(
+        """SELECT client_name, client_ticker, registrant_name, amount,
+                  filing_year, filing_period, specific_issues, government_entities
+           FROM lobbying_filings
+           ORDER BY filing_year DESC, filing_period DESC, amount DESC
+           LIMIT 500""",
+        conn,
+    )
+except Exception:
+    filings_df = pd.DataFrame()
 
 if not filings_df.empty:
     col_f1, col_f2 = st.columns(2)
@@ -178,10 +193,13 @@ else:
 st.markdown("---")
 st.subheader("Cross-Reference: Lobbying + Regulatory Events")
 
-matched_tickers = pd.read_sql_query(
-    "SELECT DISTINCT client_ticker FROM lobbying_filings WHERE client_ticker IS NOT NULL ORDER BY client_ticker",
-    conn,
-)
+try:
+    matched_tickers = pd.read_sql_query(
+        "SELECT DISTINCT client_ticker FROM lobbying_filings WHERE client_ticker IS NOT NULL ORDER BY client_ticker",
+        conn,
+    )
+except Exception:
+    matched_tickers = pd.DataFrame()
 
 if not matched_tickers.empty:
     selected_company = st.selectbox(
@@ -192,13 +210,16 @@ if not matched_tickers.empty:
 
     if selected_company:
         # Get lobbying issues for this company
-        company_issues = conn.execute(
-            """SELECT specific_issues, filing_year, filing_period
-               FROM lobbying_filings
-               WHERE client_ticker = ? AND specific_issues IS NOT NULL
-               ORDER BY filing_year DESC, filing_period DESC LIMIT 5""",
-            (selected_company,),
-        ).fetchall()
+        try:
+            company_issues = conn.execute(
+                """SELECT specific_issues, filing_year, filing_period
+                   FROM lobbying_filings
+                   WHERE client_ticker = ? AND specific_issues IS NOT NULL
+                   ORDER BY filing_year DESC, filing_period DESC LIMIT 5""",
+                (selected_company,),
+            ).fetchall()
+        except Exception:
+            company_issues = []
 
         if company_issues:
             # Extract keywords from issues
@@ -217,16 +238,19 @@ if not matched_tickers.empty:
                 like_conditions = " OR ".join(
                     f"title LIKE '%{term}%'" for term in search_terms[:5]
                 )
-                matching_events = pd.read_sql_query(
-                    f"""SELECT publication_date, source, event_type, title, impact_score, sectors
-                        FROM regulatory_events
-                        WHERE ({like_conditions})
-                          AND tickers LIKE ?
-                        ORDER BY publication_date DESC
-                        LIMIT 20""",
-                    conn,
-                    params=(f"%{selected_company}%",),
-                )
+                try:
+                    matching_events = pd.read_sql_query(
+                        f"""SELECT publication_date, source, event_type, title, impact_score, sectors
+                            FROM regulatory_events
+                            WHERE ({like_conditions})
+                              AND tickers LIKE ?
+                            ORDER BY publication_date DESC
+                            LIMIT 20""",
+                        conn,
+                        params=(f"%{selected_company}%",),
+                    )
+                except Exception:
+                    matching_events = pd.DataFrame()
 
                 if not matching_events.empty:
                     st.dataframe(matching_events, use_container_width=True)

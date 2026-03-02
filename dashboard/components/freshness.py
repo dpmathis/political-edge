@@ -45,6 +45,8 @@ def render_freshness(table: str, date_column: str, label: str | None = None, con
         display_label = label or table.replace("_", " ").title()
         st.caption(f":{color}[{display_label} data through {latest}]")
 
+    except Exception:
+        st.caption(f"{label or table}: Unable to check freshness")
     finally:
         if close_conn:
             conn.close()

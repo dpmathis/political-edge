@@ -26,59 +26,78 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SEED_DB_GZ = os.path.join(_PROJECT_ROOT, "data", "seed.db.gz")
 
 
-def _seed_version() -> str:
-    """Return a version string for the current seed.db.gz based on file size."""
-    if os.path.exists(_SEED_DB_GZ):
-        return str(os.path.getsize(_SEED_DB_GZ))
-    return ""
-
-
 def _ensure_db():
     """Auto-initialize DB: decompress seed if available, else create empty.
 
-    Tracks the seed version via a marker file so the DB is re-decompressed
-    whenever seed.db.gz changes (new deploy with updated data).
+    Uses seed file size as a version marker to detect when a new seed
+    has been deployed and the DB needs to be refreshed.
     """
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     marker_path = DB_PATH + ".seed_version"
 
-    if os.path.exists(_SEED_DB_GZ):
-        current_version = _seed_version()
-        stored_version = ""
-        if os.path.exists(marker_path):
-            stored_version = open(marker_path).read().strip()
+    need_decompress = False
 
-        if current_version != stored_version or not os.path.exists(DB_PATH):
-            # Seed changed or DB missing — re-decompress
-            with gzip.open(_SEED_DB_GZ, "rb") as f_in:
-                with open(DB_PATH, "wb") as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-            # Run migration for any new tables/columns
+    if os.path.exists(_SEED_DB_GZ):
+        current_version = str(os.path.getsize(_SEED_DB_GZ))
+        stored_version = ""
+
+        if os.path.exists(marker_path):
+            try:
+                stored_version = open(marker_path).read().strip()
+            except Exception:
+                stored_version = ""
+
+        if not os.path.exists(DB_PATH):
+            need_decompress = True
+        elif current_version != stored_version:
+            need_decompress = True
+
+        if need_decompress:
+            try:
+                with gzip.open(_SEED_DB_GZ, "rb") as f_in:
+                    with open(DB_PATH, "wb") as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                # Run migration for any new tables/columns
+                from scripts.migrate_phase2 import main as migrate_main
+                migrate_main()
+                # Write marker so we don't decompress again until seed changes
+                try:
+                    with open(marker_path, "w") as f:
+                        f.write(current_version)
+                except Exception:
+                    pass  # Marker write failure is non-fatal
+                return
+            except Exception as e:
+                st.error(f"Failed to decompress seed database: {e}")
+
+    if not os.path.exists(DB_PATH):
+        # No seed and no DB — create empty
+        try:
+            from scripts.setup_db import main as setup_main
+            setup_main()
+        except Exception:
+            pass
+        try:
             from scripts.migrate_phase2 import main as migrate_main
             migrate_main()
-            # Write marker
-            with open(marker_path, "w") as f:
-                f.write(current_version)
-            return
+        except Exception:
+            pass
+        return
 
-    if os.path.exists(DB_PATH):
-        # DB exists and seed hasn't changed — ensure schema is up to date
+    # DB exists — ensure schema is up to date
+    try:
         conn = sqlite3.connect(DB_PATH)
         tables = set(r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall())
         conn.close()
-        required = {"fda_events", "trading_signals", "prediction_markets", "data_collection_log"}
+        required = {"fda_events", "trading_signals", "prediction_markets",
+                     "data_collection_log", "event_studies"}
         if not required.issubset(tables):
             from scripts.migrate_phase2 import main as migrate_main
             migrate_main()
-        return
-
-    # Fallback: create empty database
-    from scripts.setup_db import main as setup_main
-    setup_main()
-    from scripts.migrate_phase2 import main as migrate_main
-    migrate_main()
+    except Exception:
+        pass
 
 
 _ensure_db()
@@ -106,14 +125,19 @@ st.markdown("""
 
 # Show database stats
 conn = sqlite3.connect(DB_PATH)
-stats = {
-    "Regulatory Events": conn.execute("SELECT COUNT(*) FROM regulatory_events").fetchone()[0],
-    "FDA Events": conn.execute("SELECT COUNT(*) FROM fda_events").fetchone()[0],
-    "Lobbying Filings": conn.execute("SELECT COUNT(*) FROM lobbying_filings").fetchone()[0],
-    "Congress Trades": conn.execute("SELECT COUNT(*) FROM congress_trades").fetchone()[0],
-    "Trading Signals": conn.execute("SELECT COUNT(*) FROM trading_signals").fetchone()[0],
-    "Market Data": conn.execute("SELECT COUNT(*) FROM market_data").fetchone()[0],
-}
+stats = {}
+for label, table in [
+    ("Regulatory Events", "regulatory_events"),
+    ("FDA Events", "fda_events"),
+    ("Lobbying Filings", "lobbying_filings"),
+    ("Congress Trades", "congress_trades"),
+    ("Trading Signals", "trading_signals"),
+    ("Market Data", "market_data"),
+]:
+    try:
+        stats[label] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    except Exception:
+        stats[label] = 0
 conn.close()
 
 stat_cols = st.columns(len(stats))

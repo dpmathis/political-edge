@@ -24,16 +24,24 @@ render_freshness("fda_events", "event_date", "FDA Events")
 conn = sqlite3.connect(DB_PATH)
 
 # --- KPI ROW ---
-total_fda = conn.execute("SELECT COUNT(*) FROM fda_events").fetchone()[0]
-upcoming = conn.execute(
-    "SELECT COUNT(*) FROM fda_events WHERE outcome = 'pending' AND event_date >= date('now')"
-).fetchone()[0]
-with_ticker = conn.execute("SELECT COUNT(*) FROM fda_events WHERE ticker IS NOT NULL").fetchone()[0]
+try:
+    total_fda = conn.execute("SELECT COUNT(*) FROM fda_events").fetchone()[0]
+    upcoming = conn.execute(
+        "SELECT COUNT(*) FROM fda_events WHERE outcome = 'pending' AND event_date >= date('now')"
+    ).fetchone()[0]
+    with_ticker = conn.execute("SELECT COUNT(*) FROM fda_events WHERE ticker IS NOT NULL").fetchone()[0]
+except Exception:
+    total_fda = 0
+    upcoming = 0
+    with_ticker = 0
 
 # Get event study stats if available
-study_row = conn.execute(
-    "SELECT mean_car, win_rate, num_events FROM event_studies WHERE study_name = 'fda_adcom' ORDER BY created_at DESC LIMIT 1"
-).fetchone()
+try:
+    study_row = conn.execute(
+        "SELECT mean_car, win_rate, num_events FROM event_studies WHERE study_name = 'fda_adcom' ORDER BY created_at DESC LIMIT 1"
+    ).fetchone()
+except Exception:
+    study_row = None
 
 kpi_cols = st.columns(4)
 with kpi_cols[0]:
@@ -51,10 +59,14 @@ with kpi_cols[3]:
 # --- EVENT TYPE BREAKDOWN ---
 st.markdown("---")
 
-type_df = pd.read_sql_query(
-    "SELECT event_type, COUNT(*) as count FROM fda_events GROUP BY event_type ORDER BY count DESC",
-    conn,
-)
+try:
+    type_df = pd.read_sql_query(
+        "SELECT event_type, COUNT(*) as count FROM fda_events GROUP BY event_type ORDER BY count DESC",
+        conn,
+    )
+except Exception:
+    type_df = pd.DataFrame()
+
 if not type_df.empty:
     import plotly.express as px
 
@@ -68,14 +80,17 @@ if not type_df.empty:
 
     with col_upcoming:
         st.subheader("Upcoming FDA Events")
-        upcoming_df = pd.read_sql_query(
-            """SELECT event_date, event_type, drug_name, company_name, ticker, details
-               FROM fda_events
-               WHERE outcome = 'pending' AND event_date >= date('now')
-               ORDER BY event_date
-               LIMIT 20""",
-            conn,
-        )
+        try:
+            upcoming_df = pd.read_sql_query(
+                """SELECT event_date, event_type, drug_name, company_name, ticker, details
+                   FROM fda_events
+                   WHERE outcome = 'pending' AND event_date >= date('now')
+                   ORDER BY event_date
+                   LIMIT 20""",
+                conn,
+            )
+        except Exception:
+            upcoming_df = pd.DataFrame()
         if upcoming_df.empty:
             st.info("No pending FDA events found.")
         else:
@@ -85,13 +100,16 @@ if not type_df.empty:
 st.markdown("---")
 st.subheader("Event Study Results")
 
-studies = pd.read_sql_query(
-    """SELECT id, study_name, hypothesis, num_events, mean_car, median_car,
-              t_statistic, p_value, win_rate, sharpe_ratio, results_json, created_at
-       FROM event_studies
-       ORDER BY created_at DESC""",
-    conn,
-)
+try:
+    studies = pd.read_sql_query(
+        """SELECT id, study_name, hypothesis, num_events, mean_car, median_car,
+                  t_statistic, p_value, win_rate, sharpe_ratio, results_json, created_at
+           FROM event_studies
+           ORDER BY created_at DESC""",
+        conn,
+    )
+except Exception:
+    studies = pd.DataFrame()
 
 if studies.empty:
     st.info("No event studies have been run yet. Use `python scripts/run_backtests.py` to generate results.")
@@ -143,12 +161,15 @@ else:
             pass
 
     # Per-event results
-    per_event = pd.read_sql_query(
-        """SELECT event_date, ticker, event_description, car_pre, car_post, car_full
-           FROM event_study_results WHERE study_id = ? ORDER BY event_date""",
-        conn,
-        params=(int(study["id"]),),
-    )
+    try:
+        per_event = pd.read_sql_query(
+            """SELECT event_date, ticker, event_description, car_pre, car_post, car_full
+               FROM event_study_results WHERE study_id = ? ORDER BY event_date""",
+            conn,
+            params=(int(study["id"]),),
+        )
+    except Exception:
+        per_event = pd.DataFrame()
     if not per_event.empty:
         st.subheader("Per-Event Results")
         display_per = per_event.copy()
@@ -161,14 +182,18 @@ else:
 st.markdown("---")
 st.subheader("All FDA Events")
 
-fda_df = pd.read_sql_query(
-    """SELECT event_date, event_type, drug_name, company_name, ticker,
-              outcome, details, abnormal_return
-       FROM fda_events
-       ORDER BY event_date DESC
-       LIMIT 200""",
-    conn,
-)
+try:
+    fda_df = pd.read_sql_query(
+        """SELECT event_date, event_type, drug_name, company_name, ticker,
+                  outcome, details, abnormal_return
+           FROM fda_events
+           ORDER BY event_date DESC
+           LIMIT 200""",
+        conn,
+    )
+except Exception:
+    fda_df = pd.DataFrame()
+
 conn.close()
 
 if fda_df.empty:

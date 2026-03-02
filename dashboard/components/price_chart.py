@@ -37,13 +37,16 @@ def render_price_chart(
     conn = sqlite3.connect(DB_PATH)
 
     # Fetch price data
-    prices = pd.read_sql_query(
-        """SELECT date, close, volume FROM market_data
-           WHERE ticker = ? AND date >= ? AND date <= ?
-           ORDER BY date""",
-        conn,
-        params=(ticker, start_date, end_date),
-    )
+    try:
+        prices = pd.read_sql_query(
+            """SELECT date, close, volume FROM market_data
+               WHERE ticker = ? AND date >= ? AND date <= ?
+               ORDER BY date""",
+            conn,
+            params=(ticker, start_date, end_date),
+        )
+    except Exception:
+        prices = pd.DataFrame()
 
     if prices.empty:
         st.info(f"No price data for {ticker} in this date range.")
@@ -60,13 +63,16 @@ def render_price_chart(
     # Fetch benchmark data if requested
     bench_df = None
     if benchmark and benchmark != ticker:
-        bench_df = pd.read_sql_query(
-            """SELECT date, close FROM market_data
-               WHERE ticker = ? AND date >= ? AND date <= ?
-               ORDER BY date""",
-            conn,
-            params=(benchmark, start_date, end_date),
-        )
+        try:
+            bench_df = pd.read_sql_query(
+                """SELECT date, close FROM market_data
+                   WHERE ticker = ? AND date >= ? AND date <= ?
+                   ORDER BY date""",
+                conn,
+                params=(benchmark, start_date, end_date),
+            )
+        except Exception:
+            bench_df = pd.DataFrame()
         if not bench_df.empty:
             bench_df["date"] = pd.to_datetime(bench_df["date"])
             # Normalize to percentage change from first day
@@ -74,14 +80,17 @@ def render_price_chart(
             prices["pct"] = (prices["close"] / prices["close"].iloc[0] - 1) * 100
 
     # Fetch regulatory events
-    events = pd.read_sql_query(
-        """SELECT publication_date, title, event_type, impact_score, agency
-           FROM regulatory_events
-           WHERE tickers LIKE ? AND publication_date >= ? AND publication_date <= ?
-           ORDER BY publication_date""",
-        conn,
-        params=(f"%{ticker}%", start_date, end_date),
-    )
+    try:
+        events = pd.read_sql_query(
+            """SELECT publication_date, title, event_type, impact_score, agency
+               FROM regulatory_events
+               WHERE tickers LIKE ? AND publication_date >= ? AND publication_date <= ?
+               ORDER BY publication_date""",
+            conn,
+            params=(f"%{ticker}%", start_date, end_date),
+        )
+    except Exception:
+        events = pd.DataFrame()
     conn.close()
 
     # Build chart with subplots if volume is shown

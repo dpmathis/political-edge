@@ -36,7 +36,10 @@ def load_signals(status_filter: str | None = None) -> pd.DataFrame:
     if status_filter and status_filter != "All":
         query += f" WHERE status = '{status_filter}'"
     query += " ORDER BY signal_date DESC"
-    df = pd.read_sql_query(query, conn)
+    try:
+        df = pd.read_sql_query(query, conn)
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     return df
 
@@ -44,13 +47,16 @@ def load_signals(status_filter: str | None = None) -> pd.DataFrame:
 @st.cache_data(ttl=60)
 def load_paper_trades() -> pd.DataFrame:
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query(
-        """SELECT pt.*, ts.signal_type, ts.direction AS signal_direction
-           FROM paper_trades pt
-           LEFT JOIN trading_signals ts ON pt.signal_id = ts.id
-           ORDER BY pt.created_at DESC LIMIT 50""",
-        conn,
-    )
+    try:
+        df = pd.read_sql_query(
+            """SELECT pt.*, ts.signal_type, ts.direction AS signal_direction
+               FROM paper_trades pt
+               LEFT JOIN trading_signals ts ON pt.signal_id = ts.id
+               ORDER BY pt.created_at DESC LIMIT 50""",
+            conn,
+        )
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     return df
 

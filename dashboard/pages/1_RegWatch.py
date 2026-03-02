@@ -32,16 +32,19 @@ filters = render_sidebar_filters()
 @st.cache_data(ttl=300)
 def load_events(start_date: str, end_date: str) -> pd.DataFrame:
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query(
-        """SELECT id, source, event_type, title, summary, agency,
-                  publication_date, effective_date, comment_deadline,
-                  url, sectors, tickers, impact_score, user_notes, trade_action
-           FROM regulatory_events
-           WHERE publication_date >= ? AND publication_date <= ?
-           ORDER BY publication_date DESC""",
-        conn,
-        params=(start_date, end_date),
-    )
+    try:
+        df = pd.read_sql_query(
+            """SELECT id, source, event_type, title, summary, agency,
+                      publication_date, effective_date, comment_deadline,
+                      url, sectors, tickers, impact_score, user_notes, trade_action
+               FROM regulatory_events
+               WHERE publication_date >= ? AND publication_date <= ?
+               ORDER BY publication_date DESC""",
+            conn,
+            params=(start_date, end_date),
+        )
+    except Exception:
+        df = pd.DataFrame()
     conn.close()
     return df
 
@@ -229,9 +232,12 @@ else:
 
     # Also include watchlist tickers
     conn = sqlite3.connect(DB_PATH)
-    watchlist_tickers = [
-        r[0] for r in conn.execute("SELECT ticker FROM watchlist WHERE active = 1 ORDER BY ticker").fetchall()
-    ]
+    try:
+        watchlist_tickers = [
+            r[0] for r in conn.execute("SELECT ticker FROM watchlist WHERE active = 1 ORDER BY ticker").fetchall()
+        ]
+    except Exception:
+        watchlist_tickers = []
     conn.close()
 
     chart_tickers = sorted(all_tickers.union(set(watchlist_tickers)))
