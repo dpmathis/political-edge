@@ -6,12 +6,14 @@ from unittest.mock import patch
 
 from analysis.signal_generator import (
     _generate_contract_signals,
+    _generate_eo_signals,
     _generate_fda_signals,
     _generate_fomc_signals,
     _generate_lobbying_signals,
     _generate_macro_regime_signals,
     _generate_pipeline_deadline_signals,
     _generate_pipeline_pressure_signals,
+    _generate_reg_shock_signals,
     _generate_regulatory_signals,
 )
 
@@ -90,6 +92,18 @@ def _seed_signal(conn, ticker, signal_type, days_ago=1):
            (ticker, signal_type, signal_date, direction, conviction, status)
            VALUES (?, ?, ?, ?, ?, ?)""",
         (ticker, signal_type, _today_offset(-days_ago), "long", "medium", "active"),
+    )
+    conn.commit()
+
+
+def _seed_executive_order(conn, title, days_ago=1):
+    """Insert an executive order regulatory event."""
+    conn.execute(
+        """INSERT INTO regulatory_events
+           (source, source_id, event_type, title, agency, publication_date,
+            tickers, impact_score, sectors)
+           VALUES (?, ?, 'executive_order', ?, 'Executive Office of the President', ?, '', 0, '')""",
+        ("federal_register", f"eo-{title[:15]}-{days_ago}", title, _today_offset(-days_ago)),
     )
     conn.commit()
 
@@ -450,3 +464,110 @@ class TestGeneratePipelineDeadlineSignals:
         conn.close()
         lmt_sigs = [s for s in signals if s["ticker"] == "LMT"]
         assert len(lmt_sigs) == 0  # impact < 3 threshold
+
+
+# ── _generate_eo_signals ─────────────────────────────────────────
+
+
+class TestGenerateEoSignals:
+    """Tests for _generate_eo_signals."""
+
+    def test_eo_defense_generates_signals(self, db_path):
+        conn = sqlite3.connect(db_path)
+        _seed_executive_order(conn, "Strengthening National Defense Production")
+        signals = _generate_eo_signals(conn, 1.0, 1)
+        conn.close()
+        defense_sigs = [s for s in signals if s["signal_type"] == "eo_defense"]
+        assert len(defense_sigs) >= 1
+        tickers = {s["ticker"] for s in defense_sigs}
+        # eo_classifier maps defense → LMT, RTX, GD, NOC, BA
+        assert "LMT" in tickers
+        assert all(s["direction"] == "long" for s in defense_sigs)
+
+    def test_eo_non_tradeable_skipped(self, db_path):
+        conn = sqlite3.connect(db_path)
+        _seed_executive_order(conn, "Administrative Order on Federal Procedures")
+        signals = _generate_eo_signals(conn, 1.0, 1)
+        conn.close()
+        # "Administrative Order on Federal Procedures" doesn't match any TOPIC_KEYWORDS
+        assert len(signals) == 0
+
+    def test_eo_tariff_generates_signals(self, db_path):
+        conn = sqlite3.connect(db_path)
+        _seed_executive_order(conn, "Imposing Tariff Surcharge on Steel Imports")
+        signals = _generate_eo_signals(conn, 1.0, 1)
+        conn.close()
+        tariff_sigs = [s for s in signals if s["signal_type"] == "eo_tariff_trade"]
+        assert len(tariff_sigs) >= 1
+        assert all(s["direction"] == "long" for s in tariff_sigs)
+
+    def test_eo_dedup_skips_recent(self, db_path):
+        conn = sqlite3.connect(db_path)
+        _seed_executive_order(conn, "Strengthening National Defense Production")
+        # Pre-seed an eo_defense signal for LMT within dedup window (3 days)
+        _seed_signal(conn, "LMT", "eo_defense", days_ago=1)
+        signals = _generate_eo_signals(conn, 1.0, 1)
+        conn.close()
+        # LMT should be skipped, but RTX/GD/NOC/BA should still generate
+        lmt_sigs = [s for s in signals if s["ticker"] == "LMT"]
+        other_sigs = [s for s in signals if s["ticker"] != "LMT" and s["signal_type"] == "eo_defense"]
+        assert len(lmt_sigs) == 0
+        assert len(other_sigs) >= 1
+
+
+# ── _generate_reg_shock_signals ──────────────────────────────────
+
+
+class TestGenerateRegShockSignals:
+    """Tests for _generate_reg_shock_signals."""
+
+    @patch("analysis.reg_shock_detector.detect_shocks")
+    def test_reg_shock_generates_signals(self, mock_detect, db_path):
+        mock_detect.return_value = [{
+            "agency": "Defense Department, Defense Acquisition Regulations System",
+            "tickers": ["LMT", "RTX"],
+            "z_score": 2.5,
+            "count": 8,
+            "direction": "long",
+            "confidence": "high",
+            "expected_car": 0.0177,
+            "hold_days": 5,
+        }]
+        conn = sqlite3.connect(db_path)
+        signals = _generate_reg_shock_signals(conn, 1.0, 1)
+        conn.close()
+        assert len(signals) == 2
+        tickers = {s["ticker"] for s in signals}
+        assert tickers == {"LMT", "RTX"}
+        assert all(s["signal_type"] == "reg_shock" for s in signals)
+        assert all(s["direction"] == "long" for s in signals)
+
+    @patch("analysis.reg_shock_detector.detect_shocks")
+    def test_reg_shock_no_shocks_empty(self, mock_detect, db_path):
+        mock_detect.return_value = []
+        conn = sqlite3.connect(db_path)
+        signals = _generate_reg_shock_signals(conn, 1.0, 1)
+        conn.close()
+        assert len(signals) == 0
+
+    @patch("analysis.reg_shock_detector.detect_shocks")
+    def test_reg_shock_dedup_skips_recent(self, mock_detect, db_path):
+        mock_detect.return_value = [{
+            "agency": "Defense Department, Defense Acquisition Regulations System",
+            "tickers": ["LMT", "RTX"],
+            "z_score": 2.5,
+            "count": 8,
+            "direction": "long",
+            "confidence": "high",
+            "expected_car": 0.0177,
+            "hold_days": 5,
+        }]
+        conn = sqlite3.connect(db_path)
+        # Pre-seed reg_shock signal for LMT within 7-day dedup window
+        _seed_signal(conn, "LMT", "reg_shock", days_ago=3)
+        signals = _generate_reg_shock_signals(conn, 1.0, 1)
+        conn.close()
+        # LMT deduped, RTX should still generate
+        tickers = {s["ticker"] for s in signals}
+        assert "LMT" not in tickers
+        assert "RTX" in tickers

@@ -10,15 +10,6 @@ api_keys:
 # Safety: must be false. Paper trading only.
 live_trading_enabled: false
 
-# Collection Schedule (cron expressions)
-schedule:
-  federal_register: "0 */6 * * *"   # Every 6 hours
-  congress: "0 */12 * * *"          # Every 12 hours
-  usaspending: "0 18 * * 1-5"       # 6pm ET weekdays
-  congress_trades: "0 8 * * *"      # Daily 8am
-  lobbying: "0 8 1 1,4,7,10 *"     # Quarterly
-  market_data: "0 17 * * 1-5"       # 5pm ET weekdays
-
 # Alert Configuration
 alerts:
   email: ""
@@ -62,21 +53,6 @@ alerts:
     - name: "Stale Data Warning"
       custom_query: true
       lookback_hours: 24
-
-# Collection Settings
-collection:
-  congress:
-    request_delay_seconds: 1.0
-    max_pages: 10
-  lobbying:
-    request_delay_seconds: 1.0
-    max_pages: 50
-  congress_trades:
-    request_delay_seconds: 3.0
-    max_pages_per_run: 10
-  regulations_gov:
-    request_delay_seconds: 1.5
-    max_pages: 10
 
 # Initial Watchlist
 watchlist:
