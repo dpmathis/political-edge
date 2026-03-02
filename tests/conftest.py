@@ -172,11 +172,135 @@ CREATE TABLE IF NOT EXISTS watchlist (
     ticker TEXT UNIQUE NOT NULL,
     company_name TEXT,
     sector TEXT,
+    subsector TEXT,
+    thesis TEXT,
+    key_agencies TEXT,
+    key_keywords TEXT,
+    added_date DATE DEFAULT CURRENT_DATE,
     active BOOLEAN DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS pipeline_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposed_event_id INTEGER NOT NULL,
+    final_event_id INTEGER,
+    agency TEXT,
+    sector TEXT,
+    tickers TEXT,
+    proposed_date DATE,
+    comment_deadline DATE,
+    estimated_final_date DATE,
+    actual_final_date DATE,
+    status TEXT DEFAULT 'proposed',
+    days_in_pipeline INTEGER,
+    title_similarity REAL,
+    impact_score INTEGER DEFAULT 0,
+    proposed_title TEXT,
+    historical_car REAL,
+    historical_n INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (proposed_event_id) REFERENCES regulatory_events(id),
+    FOREIGN KEY (final_event_id) REFERENCES regulatory_events(id),
+    UNIQUE(proposed_event_id)
+);
+
+CREATE TABLE IF NOT EXISTS paper_trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    signal_id INTEGER,
+    broker TEXT DEFAULT 'alpaca',
+    order_id TEXT,
+    ticker TEXT,
+    side TEXT,
+    quantity INTEGER,
+    price REAL,
+    filled_price REAL,
+    status TEXT DEFAULT 'submitted',
+    order_type TEXT DEFAULT 'market',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS contract_awards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    award_id TEXT UNIQUE NOT NULL,
+    recipient_name TEXT NOT NULL,
+    recipient_ticker TEXT,
+    awarding_agency TEXT,
+    award_amount REAL,
+    award_date DATE,
+    description TEXT,
+    naics_code TEXT,
+    place_of_performance TEXT,
+    contract_type TEXT,
+    url TEXT,
+    raw_json TEXT,
+    user_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lobbying_filings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filing_id TEXT UNIQUE NOT NULL,
+    registrant_name TEXT NOT NULL,
+    client_name TEXT NOT NULL,
+    client_ticker TEXT,
+    amount REAL,
+    filing_year INTEGER,
+    filing_period TEXT,
+    specific_issues TEXT,
+    government_entities TEXT,
+    lobbyists TEXT,
+    url TEXT,
+    raw_json TEXT,
+    user_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS congress_trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    politician TEXT NOT NULL,
+    party TEXT,
+    chamber TEXT,
+    ticker TEXT NOT NULL,
+    trade_type TEXT NOT NULL,
+    amount_range TEXT,
+    trade_date DATE,
+    disclosure_date DATE,
+    asset_description TEXT,
+    committees TEXT,
+    url TEXT,
+    source TEXT,
+    user_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS data_collection_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collector TEXT NOT NULL,
+    status TEXT DEFAULT 'success',
+    records_added INTEGER DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS company_contractor_map (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    contractor_name TEXT NOT NULL,
+    UNIQUE(ticker, contractor_name)
+);
+
+CREATE TABLE IF NOT EXISTS sector_keyword_map (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sector TEXT NOT NULL,
+    keyword TEXT NOT NULL,
+    weight REAL DEFAULT 1.0,
+    UNIQUE(sector, keyword)
 );
 
 CREATE INDEX IF NOT EXISTS idx_market_ticker ON market_data(ticker, date);
 CREATE INDEX IF NOT EXISTS idx_events_date ON regulatory_events(publication_date DESC);
+CREATE INDEX IF NOT EXISTS idx_pipeline_status ON pipeline_rules(status);
 """
 
 
@@ -264,9 +388,87 @@ def db_path():
             (d.isoformat(), quadrant, label, 1.2 if quadrant == 1 else 1.0, "high"),
         )
 
+    # Seed watchlist
+    conn.execute(
+        "INSERT INTO watchlist (ticker, company_name, sector) VALUES (?, ?, ?)",
+        ("LMT", "Lockheed Martin", "Defense"),
+    )
+    conn.execute(
+        "INSERT INTO watchlist (ticker, company_name, sector) VALUES (?, ?, ?)",
+        ("PFE", "Pfizer", "Healthcare"),
+    )
+
     conn.commit()
     conn.close()
 
     yield path
 
     os.unlink(path)
+
+
+@pytest.fixture
+def db_with_pipeline(db_path):
+    """Extend db_path with proposed + final rules for pipeline testing."""
+    conn = sqlite3.connect(db_path)
+    start = date(2025, 10, 1)
+
+    # Add proposed rules
+    for i in range(5):
+        pub_date = (start + timedelta(days=i * 10)).isoformat()
+        deadline = (start + timedelta(days=i * 10 + 60)).isoformat()
+        conn.execute(
+            """INSERT INTO regulatory_events
+               (source, source_id, event_type, title, agency, publication_date,
+                comment_deadline, sectors, tickers, impact_score)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (
+                "federal_register", f"fr-proposed-{i}", "proposed_rule",
+                f"Proposed Rule on Defense Testing {i}",
+                "Department of Defense", pub_date, deadline,
+                "Defense", "LMT", 4,
+            ),
+        )
+
+    # Add matching final rules for some
+    for i in range(3):
+        pub_date = (start + timedelta(days=i * 10 + 180)).isoformat()
+        conn.execute(
+            """INSERT INTO regulatory_events
+               (source, source_id, event_type, title, agency, publication_date,
+                sectors, tickers, impact_score)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (
+                "federal_register", f"fr-final-{i}", "final_rule",
+                f"Final Rule on Defense Testing {i}",
+                "Department of Defense", pub_date,
+                "Defense", "LMT", 4,
+            ),
+        )
+
+    conn.commit()
+    conn.close()
+    return db_path
+
+
+@pytest.fixture
+def db_with_signals(db_path):
+    """Extend db_path with sample trading signals."""
+    conn = sqlite3.connect(db_path)
+    today = date.today()
+
+    signals = [
+        (today.isoformat(), "LMT", "regulatory_event", "long", "high", "pending", 1.2),
+        (today.isoformat(), "LMT", "fda_catalyst", "long", "medium", "active", 1.0),
+        ((today - timedelta(days=30)).isoformat(), "PFE", "lobbying_spike", "short", "low", "closed", 0.8),
+    ]
+    for sig in signals:
+        conn.execute(
+            """INSERT INTO trading_signals
+               (signal_date, ticker, signal_type, direction, conviction, status, position_size_modifier)
+               VALUES (?,?,?,?,?,?,?)""",
+            sig,
+        )
+
+    conn.commit()
+    conn.close()
+    return db_path

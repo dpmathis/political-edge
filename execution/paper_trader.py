@@ -229,3 +229,96 @@ class PaperTrader:
         except Exception as e:
             logger.error("Failed to close position %s: %s", ticker, e)
             return {"status": "error", "reason": str(e)}
+
+    def reconcile_trades(self) -> int:
+        """Reconcile paper_trades with Alpaca order statuses.
+
+        Queries Alpaca for all recent orders and updates the paper_trades
+        table with filled_price and final status.
+
+        Returns:
+            Count of trades updated.
+        """
+        if not self.is_configured:
+            return 0
+
+        conn = sqlite3.connect(DB_PATH)
+        pending = conn.execute(
+            "SELECT id, order_id FROM paper_trades WHERE status NOT IN ('filled', 'canceled', 'expired')"
+        ).fetchall()
+
+        updated = 0
+        for trade_id, order_id in pending:
+            if not order_id:
+                continue
+            try:
+                order = self.client.get_order_by_id(order_id)
+                status = str(order.status).lower()
+                filled_price = float(order.filled_avg_price) if order.filled_avg_price else None
+
+                conn.execute(
+                    "UPDATE paper_trades SET status = ?, filled_price = ? WHERE id = ?",
+                    (status, filled_price, trade_id),
+                )
+                updated += 1
+            except Exception as e:
+                logger.debug("Could not reconcile order %s: %s", order_id, e)
+
+        conn.commit()
+        conn.close()
+        logger.info("Reconciled %d/%d paper trades", updated, len(pending))
+        return updated
+
+    def close_expired_positions(self) -> int:
+        """Close positions for signals that have exceeded their time horizon.
+
+        Finds active trading_signals past time_horizon_days, closes via Alpaca,
+        and updates signal status to 'closed' with P&L.
+
+        Returns:
+            Count of positions closed.
+        """
+        if not self.is_configured:
+            return 0
+
+        conn = sqlite3.connect(DB_PATH)
+        expired = conn.execute(
+            """SELECT id, ticker, entry_price, entry_date, time_horizon_days, direction
+               FROM trading_signals
+               WHERE status = 'active'
+                 AND entry_date IS NOT NULL
+                 AND time_horizon_days IS NOT NULL
+                 AND julianday('now') - julianday(entry_date) > time_horizon_days"""
+        ).fetchall()
+
+        closed = 0
+        for sig_id, ticker, entry_price, entry_date, horizon, direction in expired:
+            try:
+                result = self.close_position(ticker)
+                if result["status"] != "closed":
+                    continue
+
+                exit_price = self._get_current_price(ticker) or entry_price
+                pnl_pct = (exit_price - entry_price) / entry_price if entry_price else 0
+                if direction == "short":
+                    pnl_pct = -pnl_pct
+
+                today = date.today().isoformat()
+                holding = (date.fromisoformat(today) - date.fromisoformat(entry_date)).days
+
+                conn.execute(
+                    """UPDATE trading_signals SET
+                       status = 'closed', exit_price = ?, exit_date = ?,
+                       pnl_percent = ?, holding_days = ?
+                       WHERE id = ?""",
+                    (exit_price, today, pnl_pct, holding, sig_id),
+                )
+                closed += 1
+                logger.info("Closed expired position %s (signal %d, held %d days)", ticker, sig_id, holding)
+            except Exception as e:
+                logger.error("Failed to close expired position %s: %s", ticker, e)
+
+        conn.commit()
+        conn.close()
+        logger.info("Closed %d expired positions", closed)
+        return closed

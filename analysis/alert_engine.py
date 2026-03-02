@@ -101,6 +101,68 @@ def _check_regime_change(conn: sqlite3.Connection) -> tuple[bool, str]:
     return False, ""
 
 
+def _check_high_conviction_signals(conn: sqlite3.Connection) -> tuple[bool, str]:
+    """Check for high-conviction trading signals generated in the last 24 hours."""
+    rows = conn.execute(
+        """SELECT signal_date, ticker, signal_type, direction, rationale
+           FROM trading_signals
+           WHERE conviction = 'high'
+             AND created_at >= datetime('now', '-24 hours')
+             AND status = 'pending'
+           ORDER BY signal_date DESC"""
+    ).fetchall()
+
+    if not rows:
+        return False, ""
+
+    lines = [
+        "High-Conviction Trading Signals",
+        "=" * 40,
+        "",
+    ]
+    for row in rows[:10]:
+        lines.append(f"  {row[1]} ({row[2]}): {row[3]}")
+        lines.append(f"    Date: {row[0]}")
+        if row[4]:
+            lines.append(f"    Rationale: {row[4][:120]}")
+        lines.append("")
+
+    if len(rows) > 10:
+        lines.append(f"  ... and {len(rows) - 10} more signals")
+
+    return True, "\n".join(lines)
+
+
+def _check_pipeline_deadlines(conn: sqlite3.Connection) -> tuple[bool, str]:
+    """Check for pipeline rules with comment deadlines approaching within 7 days."""
+    rows = conn.execute(
+        """SELECT pr.proposed_title, pr.agency, pr.comment_deadline, pr.tickers, pr.impact_score
+           FROM pipeline_rules pr
+           WHERE pr.status IN ('proposed', 'in_comment')
+             AND pr.comment_deadline BETWEEN date('now') AND date('now', '+7 days')
+             AND pr.impact_score >= 3
+           ORDER BY pr.comment_deadline"""
+    ).fetchall()
+
+    if not rows:
+        return False, ""
+
+    lines = [
+        "Pipeline Deadlines Approaching (next 7 days)",
+        "=" * 40,
+        "",
+    ]
+    for row in rows[:10]:
+        lines.append(f"  {row[0][:80]}")
+        lines.append(f"    Agency: {row[1]} | Deadline: {row[2]} | Tickers: {row[3] or 'N/A'}")
+        lines.append("")
+
+    if len(rows) > 10:
+        lines.append(f"  ... and {len(rows) - 10} more rules")
+
+    return True, "\n".join(lines)
+
+
 def _check_lobbying_spikes(conn: sqlite3.Connection) -> tuple[bool, str]:
     """Check for companies with >25% QoQ lobbying spend increase."""
     from collectors.lobbying import calculate_qoq_changes
@@ -156,6 +218,10 @@ def evaluate_and_send() -> int:
                     has_alert, body = _check_lobbying_spikes(conn)
                 elif "Regime" in name:
                     has_alert, body = _check_regime_change(conn)
+                elif "Conviction" in name or "Signal" in name:
+                    has_alert, body = _check_high_conviction_signals(conn)
+                elif "Pipeline" in name or "Deadline" in name:
+                    has_alert, body = _check_pipeline_deadlines(conn)
                 else:
                     continue
 

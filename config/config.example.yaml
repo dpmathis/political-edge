@@ -53,6 +53,14 @@ alerts:
       custom_query: true
       lookback_hours: 24
 
+    - name: "High-Conviction Signal"
+      custom_query: true
+      lookback_hours: 24
+
+    - name: "Pipeline Deadline Approaching"
+      custom_query: true
+      lookback_hours: 168
+
 # Collection Settings
 collection:
   congress:

@@ -92,7 +92,7 @@ def _ensure_db():
         ).fetchall())
         conn.close()
         required = {"fda_events", "trading_signals", "prediction_markets",
-                     "data_collection_log", "event_studies"}
+                     "data_collection_log", "event_studies", "pipeline_rules"}
         if not required.issubset(tables):
             from scripts.migrate_phase2 import main as migrate_main
             migrate_main()
@@ -121,6 +121,9 @@ st.markdown("""
 - **Signals** — Trading signal generation and paper trade execution
 - **EO Tracker** — Executive order topic classification with evidence-based signals
 - **Settings** — Data collection, backfill, backtesting, and data health
+- **Research** — Event study research reports with interactive visualizations
+- **Pipeline** — Regulatory pipeline monitor and scenario builder
+- **Backtests** — Run and visualize hypothesis backtests
 """)
 
 # Show database stats
@@ -131,6 +134,7 @@ for label, table in [
     ("FDA Events", "fda_events"),
     ("Lobbying Filings", "lobbying_filings"),
     ("Congress Trades", "congress_trades"),
+    ("Contract Awards", "contract_awards"),
     ("Trading Signals", "trading_signals"),
     ("Market Data", "market_data"),
 ]:

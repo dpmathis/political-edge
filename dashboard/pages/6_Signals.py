@@ -97,10 +97,60 @@ if account_info:
     if positions:
         st.markdown("**Open Positions**")
         pos_df = pd.DataFrame(positions)
+        raw_pos_df = pos_df.copy()  # Keep raw for charts
+
+        # Position heat map — color by unrealized P&L %
+        pos_chart_col1, pos_chart_col2 = st.columns(2)
+        with pos_chart_col1:
+            if not raw_pos_df.empty and "pnl_pct" in raw_pos_df.columns:
+                fig = px.bar(
+                    raw_pos_df, x="ticker", y="pnl_pct",
+                    color="pnl_pct",
+                    color_continuous_scale=["red", "gray", "green"],
+                    title="Unrealized P&L by Position",
+                )
+                fig.update_layout(height=250, margin=dict(l=0, r=0, t=30, b=0), yaxis_title="P&L %")
+                st.plotly_chart(fig, use_container_width=True)
+
+        with pos_chart_col2:
+            if not raw_pos_df.empty and "market_value" in raw_pos_df.columns:
+                # Exposure breakdown by ticker
+                fig = px.pie(
+                    raw_pos_df, values="market_value", names="ticker",
+                    title="Position Allocation",
+                )
+                fig.update_layout(height=250, margin=dict(l=0, r=0, t=30, b=0))
+                st.plotly_chart(fig, use_container_width=True)
+
         pos_df["pnl_pct"] = pos_df["pnl_pct"].apply(lambda x: f"{x:+.2%}")
         pos_df["pnl"] = pos_df["pnl"].apply(lambda x: f"${x:+,.2f}")
         pos_df["market_value"] = pos_df["market_value"].apply(lambda x: f"${x:,.2f}")
         st.dataframe(pos_df, use_container_width=True, hide_index=True)
+
+    # Reconcile button
+    recon_col1, recon_col2 = st.columns(2)
+    with recon_col1:
+        if st.button("Reconcile Trades"):
+            with st.spinner("Reconciling with Alpaca..."):
+                try:
+                    from execution.paper_trader import PaperTrader
+                    trader = PaperTrader()
+                    updated = trader.reconcile_trades()
+                    st.success(f"Reconciled {updated} trades")
+                    st.cache_data.clear()
+                except Exception as e:
+                    st.error(f"Reconciliation failed: {e}")
+    with recon_col2:
+        if st.button("Close Expired Positions"):
+            with st.spinner("Closing expired positions..."):
+                try:
+                    from execution.paper_trader import PaperTrader
+                    trader = PaperTrader()
+                    closed = trader.close_expired_positions()
+                    st.success(f"Closed {closed} expired positions")
+                    st.cache_data.clear()
+                except Exception as e:
+                    st.error(f"Failed: {e}")
 
     st.markdown("---")
 else:

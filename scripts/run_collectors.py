@@ -98,7 +98,16 @@ def main():
     except Exception as e:
         logger.error("Lobbying collector failed: %s", e, exc_info=True)
 
-    # 9. Congressional trades
+    # 9. Contract awards (USASpending — no API key required)
+    try:
+        logger.info("--- Contract Awards (USASpending) ---")
+        from collectors import usaspending
+        new = usaspending.collect()
+        logger.info("Contract Awards: %d new awards", new)
+    except Exception as e:
+        logger.error("USASpending collector failed: %s", e, exc_info=True)
+
+    # 10. Congressional trades
     try:
         logger.info("--- Congressional Trades ---")
         new = congress_trades.collect()
@@ -106,7 +115,7 @@ def main():
     except Exception as e:
         logger.error("Congressional trades collector failed: %s", e, exc_info=True)
 
-    # 10. FRED macro data (requires API key)
+    # 11. FRED macro data (requires API key)
     try:
         logger.info("--- FRED Macro Data ---")
         new = fred_macro.collect()
@@ -114,7 +123,7 @@ def main():
     except Exception as e:
         logger.error("FRED collector failed: %s", e, exc_info=True)
 
-    # 11. FOMC events
+    # 12. FOMC events
     try:
         logger.info("--- FOMC Events ---")
         new = fomc.collect()
@@ -122,7 +131,7 @@ def main():
     except Exception as e:
         logger.error("FOMC collector failed: %s", e, exc_info=True)
 
-    # 12. Macro regime classification (after FRED data)
+    # 13. Macro regime classification (after FRED data)
     try:
         logger.info("--- Macro Regime Classification ---")
         from analysis.macro_regime import classify_current_regime
@@ -134,7 +143,7 @@ def main():
     except Exception as e:
         logger.error("Macro regime classification failed: %s", e, exc_info=True)
 
-    # 13. Pipeline rules refresh (after regulatory events + sector tagging)
+    # 14. Pipeline rules refresh (after regulatory events + sector tagging)
     try:
         logger.info("--- Pipeline Rules ---")
         from analysis.pipeline_builder import build_pipeline, refresh_statuses
@@ -145,7 +154,7 @@ def main():
     except Exception as e:
         logger.error("Pipeline builder failed: %s", e, exc_info=True)
 
-    # 14. Signal generation (after all data is collected)
+    # 15. Signal generation (after all data is collected)
     try:
         logger.info("--- Signal Generator ---")
         from analysis.signal_generator import generate_signals, review_active_signals
@@ -156,7 +165,20 @@ def main():
     except Exception as e:
         logger.error("Signal generator failed: %s", e, exc_info=True)
 
-    # 15. Alert engine (after all collectors and signals)
+    # 16. Close expired paper trading positions (after signal review)
+    try:
+        logger.info("--- Close Expired Positions ---")
+        from execution.paper_trader import PaperTrader
+        trader = PaperTrader()
+        if trader.is_configured:
+            expired = trader.close_expired_positions()
+            logger.info("Closed %d expired positions", expired)
+        else:
+            logger.info("Alpaca not configured, skipping position close")
+    except Exception as e:
+        logger.error("Close expired positions failed: %s", e, exc_info=True)
+
+    # 17. Alert engine (after all collectors and signals)
     try:
         logger.info("--- Alert Engine ---")
         from analysis.alert_engine import evaluate_and_send
