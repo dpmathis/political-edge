@@ -30,7 +30,7 @@ def _load_studies(prefix: str) -> pd.DataFrame:
     """Load event studies matching a name prefix."""
     try:
         return pd.read_sql_query(
-            """SELECT study_id, study_name, hypothesis, benchmark,
+            """SELECT id, study_name, hypothesis, benchmark,
                       window_pre, window_post, num_events, mean_car,
                       median_car, t_statistic, p_value, sharpe_ratio,
                       win_rate, results_json, created_at
@@ -176,7 +176,7 @@ def _render_study_section(studies: pd.DataFrame, prefix: str) -> None:
 
     _render_kpi_row(study)
     _render_car_timeline(study)
-    _render_per_event_scatter(study["study_id"])
+    _render_per_event_scatter(study["id"])
     _render_study_detail(study)
 
 

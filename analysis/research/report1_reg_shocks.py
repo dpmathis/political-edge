@@ -107,7 +107,8 @@ def _build_agency_weekly_intensity(conn: sqlite3.Connection) -> pd.DataFrame:
             grp["week_start"].min(), grp["week_start"].max(), freq="W-MON"
         )
         grp = (
-            grp.set_index("week_start")
+            grp[["week_start", "count"]]
+            .set_index("week_start")
             .reindex(all_weeks, fill_value=0)
             .reset_index()
         )

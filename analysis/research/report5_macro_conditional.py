@@ -189,7 +189,7 @@ def _collect_all_event_cars(
                     """SELECT r.event_date, r.ticker, r.car_full, r.car_post,
                               s.study_name
                        FROM event_study_results r
-                       JOIN event_studies s ON r.study_id = s.study_id
+                       JOIN event_studies s ON r.study_id = s.id
                        WHERE s.study_name LIKE ?""",
                     (f"%{prefix}%",),
                 ).fetchall()
@@ -239,15 +239,15 @@ def _run_per_regime_studies(cars_df: pd.DataFrame, db_path: str) -> list[EventSt
         ]
 
         try:
-            es = EventStudy(
+            es = EventStudy(db_path=db_path, benchmark_ticker="SPY")
+            result = es.run(
+                events,
                 study_name=f"report5_regime_q{int(q)}_{label.lower()}",
                 hypothesis=f"Signal CARs during {label} regime (Q{int(q)})",
-                db_path=db_path,
                 window_pre=1,
                 window_post=5,
                 benchmark="SPY",
             )
-            result = es.run(events)
             studies.append(result)
         except Exception as e:
             logger.warning("Per-regime study Q%d failed: %s", q, e)
