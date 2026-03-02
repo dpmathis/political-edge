@@ -27,9 +27,29 @@ _SEED_DB_GZ = os.path.join(_PROJECT_ROOT, "data", "seed.db.gz")
 
 
 def _ensure_db():
-    """Auto-initialize DB: decompress seed if available, else create empty."""
+    """Auto-initialize DB: decompress seed if available, else create empty.
+
+    Always re-decompresses from seed.db.gz if the seed is newer than
+    the existing DB (i.e., a new deploy with updated seed data).
+    """
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
+    # Re-decompress from seed if seed is newer than existing DB
+    if os.path.exists(_SEED_DB_GZ):
+        seed_mtime = os.path.getmtime(_SEED_DB_GZ)
+        db_mtime = os.path.getmtime(DB_PATH) if os.path.exists(DB_PATH) else 0
+
+        if seed_mtime > db_mtime:
+            with gzip.open(_SEED_DB_GZ, "rb") as f_in:
+                with open(DB_PATH, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            # Run migration to ensure any new tables/columns exist
+            from scripts.migrate_phase2 import main as migrate_main
+            migrate_main()
+            return
+
     if os.path.exists(DB_PATH):
-        # Ensure all tables exist
+        # DB exists and is newer than seed — just ensure schema is up to date
         conn = sqlite3.connect(DB_PATH)
         tables = set(r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
@@ -41,22 +61,11 @@ def _ensure_db():
             migrate_main()
         return
 
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-
-    # Try to decompress seed database (ships with repo for cloud deploy)
-    if os.path.exists(_SEED_DB_GZ):
-        with st.spinner("Loading pre-populated database..."):
-            with gzip.open(_SEED_DB_GZ, "rb") as f_in:
-                with open(DB_PATH, "wb") as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-        return
-
     # Fallback: create empty database
-    with st.spinner("Initializing empty database..."):
-        from scripts.setup_db import main as setup_main
-        setup_main()
-        from scripts.migrate_phase2 import main as migrate_main
-        migrate_main()
+    from scripts.setup_db import main as setup_main
+    setup_main()
+    from scripts.migrate_phase2 import main as migrate_main
+    migrate_main()
 
 
 _ensure_db()
