@@ -9,7 +9,6 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd

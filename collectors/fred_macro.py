@@ -98,7 +98,7 @@ def calculate_roc(conn: sqlite3.Connection, series_id: str):
     import pandas as pd
     dates = [r[1] for r in rows]
     values = [r[2] for r in rows]
-    ids = [r[0] for r in rows]
+    _ = [r[0] for r in rows]  # ids available if needed
 
     for i, (row_id, row_date, row_value) in enumerate(rows):
         if row_value is None or row_value == 0:

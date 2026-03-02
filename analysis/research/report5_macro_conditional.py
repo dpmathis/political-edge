@@ -8,7 +8,6 @@ position sizing in the signal generator.
 
 import logging
 import sqlite3
-from datetime import date as date_type
 
 import numpy as np
 import pandas as pd
@@ -21,7 +20,6 @@ from analysis.research.base import (
     ResearchReportResults,
     get_macro_regime_at_date,
     run_cross_sectional_regression,
-    run_wilcoxon_ranksum,
 )
 
 logger = logging.getLogger(__name__)

@@ -608,3 +608,62 @@ class TestSafetyChecks:
             MockTC.assert_called_once()
             call_kwargs = MockTC.call_args[1]
             assert call_kwargs["paper"] is True
+
+
+# ---------------------------------------------------------------------------
+# 6. TestCloseSignaledExits
+# ---------------------------------------------------------------------------
+
+class TestCloseSignaledExits:
+    """Verify close_signaled_exits() closes Alpaca positions for stop/TP exits."""
+
+    def test_closes_position_for_today_closed_signal(self, db_path):
+        """A signal closed today (e.g. by stop-loss) should trigger Alpaca close."""
+        conn = sqlite3.connect(db_path)
+        today = date.today().isoformat()
+        entry_date = (date.today() - timedelta(days=5)).isoformat()
+        conn.execute(
+            """INSERT INTO trading_signals
+               (signal_date, ticker, signal_type, direction, conviction,
+                status, entry_price, entry_date, exit_price, exit_date,
+                pnl_percent, holding_days, position_size_modifier)
+               VALUES (?, 'LMT', 'regulatory_event', 'long', 'high',
+                       'closed', 150.0, ?, 142.5, ?, -0.05, 5, 1.0)""",
+            (entry_date, entry_date, today),
+        )
+        conn.commit()
+        conn.close()
+
+        mock_client = _make_mock_client()
+        trader = _build_paper_trader(db_path, mock_client)
+
+        with patch("execution.paper_trader.DB_PATH", db_path):
+            closed = trader.close_signaled_exits()
+
+        assert closed >= 1
+        mock_client.close_position.assert_called_with("LMT")
+
+    def test_ignores_signals_closed_on_prior_days(self, db_path):
+        """Signals closed yesterday should not trigger Alpaca close."""
+        conn = sqlite3.connect(db_path)
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        entry_date = (date.today() - timedelta(days=6)).isoformat()
+        conn.execute(
+            """INSERT INTO trading_signals
+               (signal_date, ticker, signal_type, direction, conviction,
+                status, entry_price, entry_date, exit_price, exit_date,
+                pnl_percent, holding_days, position_size_modifier)
+               VALUES (?, 'LMT', 'regulatory_event', 'long', 'high',
+                       'closed', 150.0, ?, 142.5, ?, -0.05, 5, 1.0)""",
+            (yesterday, entry_date, yesterday),
+        )
+        conn.commit()
+        conn.close()
+
+        mock_client = _make_mock_client()
+        trader = _build_paper_trader(db_path, mock_client)
+
+        with patch("execution.paper_trader.DB_PATH", db_path):
+            closed = trader.close_signaled_exits()
+
+        assert closed == 0

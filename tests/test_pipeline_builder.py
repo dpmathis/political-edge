@@ -1,9 +1,8 @@
 """Tests for analysis/pipeline_builder.py."""
 
 import sqlite3
-from datetime import date, timedelta
+from datetime import date
 
-import pytest
 
 
 class TestDetermineStatus:
@@ -61,7 +60,7 @@ class TestBuildPipeline:
     def test_build_pipeline_idempotent(self, db_with_pipeline):
         from analysis.pipeline_builder import build_pipeline
         result1 = build_pipeline(db_with_pipeline)
-        result2 = build_pipeline(db_with_pipeline)
+        build_pipeline(db_with_pipeline)
         conn = sqlite3.connect(db_with_pipeline)
         count = conn.execute("SELECT COUNT(*) FROM pipeline_rules").fetchone()[0]
         conn.close()
@@ -80,7 +79,7 @@ class TestRefreshStatuses:
         assert changed >= 0
 
     def test_refresh_updates_status(self, db_with_pipeline):
-        from analysis.pipeline_builder import build_pipeline, refresh_statuses
+        from analysis.pipeline_builder import build_pipeline
         build_pipeline(db_with_pipeline)
         # All rules should have valid statuses
         conn = sqlite3.connect(db_with_pipeline)

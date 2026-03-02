@@ -1,9 +1,7 @@
 """Tests for execution/position_sizer.py and execution/paper_trader.py."""
 
-import sqlite3
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 
 class TestPositionSizer:

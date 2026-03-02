@@ -313,20 +313,29 @@ with fomc_col1:
         days_until = (next_date - date.today()).days
         st.metric("Next FOMC Meeting", next_meeting["event_date"], delta=f"{days_until} days away")
 
-        # Generate what to expect narrative
-        narrative_parts = [f"Next meeting: {next_meeting['event_date']} ({days_until} days away)."]
-        # Check prediction markets for hold probability
+        # FOMC rate decision probabilities from prediction markets
         try:
-            pred_conn = sqlite3.connect(DB_PATH)
-            pred = pred_conn.execute(
-                "SELECT current_price FROM prediction_markets WHERE category='fomc' AND question_text LIKE '%no change%' LIMIT 1"
-            ).fetchone()
-            pred_conn.close()
-            if pred:
-                narrative_parts.append(f"Prediction markets price a {pred[0]:.0%} chance of hold.")
+            from collectors.polymarket import get_fomc_probabilities
+            fomc_probs = get_fomc_probabilities()
+            if fomc_probs:
+                st.markdown("**Market-Implied Rate Probabilities**")
+                prob_labels = {
+                    "no_change": "Hold",
+                    "cut_25": "Cut 25bp",
+                    "cut_50": "Cut 50bp",
+                    "hike_25": "Hike 25bp",
+                    "hike": "Hike",
+                }
+                active_probs = {k: v for k, v in prob_labels.items() if k in fomc_probs}
+                if active_probs:
+                    prob_cols = st.columns(len(active_probs))
+                    for i, (key, label) in enumerate(active_probs.items()):
+                        with prob_cols[i]:
+                            st.metric(label, f"{fomc_probs[key]:.0%}")
+            else:
+                st.caption(f"Next meeting: {next_meeting['event_date']} ({days_until} days away).")
         except Exception:
-            pass
-        st.caption(" ".join(narrative_parts))
+            st.caption(f"Next meeting: {next_meeting['event_date']} ({days_until} days away).")
     else:
         st.info("No upcoming FOMC meetings in the calendar.")
 

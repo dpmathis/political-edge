@@ -6,7 +6,7 @@ that powers the Pipeline Monitor dashboard.
 
 import logging
 import sqlite3
-from datetime import date, timedelta
+from datetime import date
 from statistics import median
 
 import pandas as pd

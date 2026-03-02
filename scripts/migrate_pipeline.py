@@ -126,7 +126,7 @@ def main():
              COUNT(*) as total
            FROM regulatory_events"""
     ).fetchone()
-    print(f"\nPost-migration stats:")
+    print("\nPost-migration stats:")
     print(f"  effective_date populated: {stats[0]}/{stats[2]}")
     print(f"  comment_deadline populated: {stats[1]}/{stats[2]}")
 

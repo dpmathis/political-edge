@@ -2,7 +2,6 @@
 
 import sqlite3
 
-import pytest
 
 from analysis.event_study import EventStudy, EventStudyResults
 

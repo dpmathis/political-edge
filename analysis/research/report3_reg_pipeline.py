@@ -22,7 +22,6 @@ from analysis.event_study import EventStudy, EventStudyResults
 from analysis.research.base import (
     ResearchReportResults,
     SECTOR_ETF_ONLY,
-    run_cross_sectional_regression,
 )
 
 logger = logging.getLogger(__name__)

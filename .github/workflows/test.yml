@@ -24,5 +24,8 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Run tests
-        run: python -m pytest tests/ -v
+      - name: Lint with ruff
+        run: ruff check collectors/ analysis/ execution/ scripts/ tests/
+
+      - name: Run tests with coverage
+        run: python -m pytest tests/ -v --cov=collectors --cov=analysis --cov=execution --cov-report=term-missing --cov-fail-under=40

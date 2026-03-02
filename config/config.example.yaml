@@ -3,8 +3,6 @@
 api_keys:
   congress_gov: ""          # CONGRESS_GOV_API_KEY env var
   regulations_gov: ""       # REGULATIONS_GOV_API_KEY env var
-  quiver_quant: ""          # QUIVER_QUANT_API_KEY env var
-  tiingo: ""                # TIINGO_API_KEY env var
   fred_api_key: ""          # FRED_API_KEY env var
   alpaca_key_id: ""         # APCA_API_KEY_ID env var
   alpaca_secret_key: ""     # APCA_API_SECRET_KEY env var

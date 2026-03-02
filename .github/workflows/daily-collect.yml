@@ -43,6 +43,20 @@ jobs:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: python scripts/run_collectors.py
 
+      - name: Validate collected data
+        run: |
+          python -c "
+          import sqlite3, sys
+          conn = sqlite3.connect('data/political_edge.db')
+          tables = [r[0] for r in conn.execute(\"SELECT name FROM sqlite_master WHERE type='table'\").fetchall()]
+          if len(tables) < 10:
+              print(f'ERROR: Only {len(tables)} tables found, expected 10+')
+              sys.exit(1)
+          conn.execute('PRAGMA integrity_check')
+          conn.close()
+          print(f'Data validation passed ({len(tables)} tables)')
+          "
+
       - name: Recompress seed
         run: gzip -c data/political_edge.db > data/seed.db.gz
 

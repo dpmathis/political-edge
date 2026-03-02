@@ -14,7 +14,6 @@ import logging
 import sqlite3
 from datetime import date
 
-import pandas as pd
 
 from config import DB_PATH
 
@@ -479,7 +478,6 @@ def _generate_fomc_signals(conn: sqlite3.Connection, macro_modifier: float, macr
     Pre-FOMC drift: documented +0.49% average SPY drift in 5 days before meeting.
     Post-decision rotation: after rate decision, sector rotation signals.
     """
-    from datetime import timedelta
 
     signals = []
     today_dt = date.today()
@@ -883,7 +881,6 @@ def generate_signals() -> list[dict]:
             logger.error("Signal generator [%s] failed: %s", name, e)
 
     # Enrich signals with trade parameters before insertion
-    from analysis.trading_context import get_historical_performance, get_time_horizon
 
     for sig in all_signals:
         _enrich_signal(sig, conn)

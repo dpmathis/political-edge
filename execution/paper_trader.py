@@ -322,3 +322,36 @@ class PaperTrader:
         conn.close()
         logger.info("Closed %d expired positions", closed)
         return closed
+
+    def close_signaled_exits(self) -> int:
+        """Close Alpaca positions for signals closed today by review_active_signals().
+
+        Finds signals that were closed today (stop-loss, take-profit, max-hold)
+        but whose Alpaca position may still be open, and closes them.
+
+        Returns:
+            Count of positions closed via Alpaca.
+        """
+        if not self.is_configured:
+            return 0
+
+        conn = sqlite3.connect(DB_PATH)
+        recently_closed = conn.execute(
+            """SELECT DISTINCT ticker FROM trading_signals
+               WHERE status = 'closed'
+                 AND exit_date = date('now')
+                 AND ticker IS NOT NULL"""
+        ).fetchall()
+        conn.close()
+
+        closed = 0
+        for (ticker,) in recently_closed:
+            try:
+                result = self.close_position(ticker)
+                if result["status"] == "closed":
+                    closed += 1
+            except Exception as e:
+                logger.debug("Could not close Alpaca position for %s: %s", ticker, e)
+
+        logger.info("Closed %d Alpaca positions for signaled exits", closed)
+        return closed

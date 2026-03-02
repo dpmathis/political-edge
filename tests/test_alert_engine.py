@@ -1,9 +1,8 @@
 """Tests for analysis/alert_engine.py."""
 
 import sqlite3
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 
 class TestGetAlertConfig:

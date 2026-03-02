@@ -168,7 +168,7 @@ def collect(start_date: str | None = None, end_date: str | None = None, max_page
             bill_type = bill.get("type", "").lower()
             bill_number = bill.get("number", "")
             bill_title = bill.get("title", "")
-            bill_url = bill.get("url", "")
+            _ = bill.get("url", "")  # available for future use
 
             if not congress_num or not bill_number:
                 continue

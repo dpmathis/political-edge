@@ -218,6 +218,16 @@ def main():
     except Exception as e:
         logger.error("Signal generator failed: %s", e, exc_info=True)
 
+    # 16b. Close Alpaca positions for stop-loss/take-profit exits
+    try:
+        from execution.paper_trader import PaperTrader
+        trader_for_exits = PaperTrader()
+        if trader_for_exits.is_configured:
+            signaled_exits = trader_for_exits.close_signaled_exits()
+            logger.info("Closed %d positions from stop/TP triggers", signaled_exits)
+    except Exception as e:
+        logger.error("Close signaled exits failed: %s", e, exc_info=True)
+
     # 17. Close expired paper trading positions (after signal review)
     try:
         logger.info("--- Close Expired Positions ---")

@@ -171,7 +171,7 @@ def collect() -> int:
     )
 
     inserted = 0
-    previous_statement = None
+    _previous_statement = None  # reserved for future statement diffing
 
     # Sort by date for statement diffing
     fomc_dates_sorted = sorted(fomc_dates, key=lambda x: x["date"])
@@ -185,7 +185,7 @@ def collect() -> int:
                 (event_date,),
             ).fetchone()
             if row and row[0]:
-                previous_statement = row[0]
+                _ = row[0]  # previous statement available for future diff
             continue
 
         event_type = meeting.get("type", "meeting")

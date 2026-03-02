@@ -23,8 +23,6 @@ def load_config() -> dict:
     env_map = {
         "congress_gov": "CONGRESS_GOV_API_KEY",
         "regulations_gov": "REGULATIONS_GOV_API_KEY",
-        "quiver_quant": "QUIVER_QUANT_API_KEY",
-        "tiingo": "TIINGO_API_KEY",
         "fred_api_key": "FRED_API_KEY",
         "alpaca_key_id": "APCA_API_KEY_ID",
         "alpaca_secret_key": "APCA_API_SECRET_KEY",

@@ -8,7 +8,7 @@ import json
 import logging
 import sqlite3
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 import requests
 
