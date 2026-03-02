@@ -21,9 +21,12 @@ from analysis.eo_classifier import (
 from config import DB_PATH
 from dashboard.components.glossary import inject_tooltip_css, render_glossary_term
 
+from dashboard.components.freshness import render_freshness
+
 st.title("Executive Order Tracker")
 st.caption("Real-time topic classification with evidence-based trading signals")
 inject_tooltip_css()
+render_freshness("regulatory_events", "publication_date", "EO Events")
 
 conn = sqlite3.connect(DB_PATH)
 

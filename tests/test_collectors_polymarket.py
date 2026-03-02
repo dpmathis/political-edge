@@ -13,32 +13,6 @@ from collectors.polymarket import (
     get_fomc_probabilities,
 )
 
-# ── Full prediction_markets schema (conftest table is missing columns) ───
-
-PREDICTION_MARKETS_DDL = """
-CREATE TABLE IF NOT EXISTS prediction_markets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    contract_id TEXT UNIQUE NOT NULL,
-    platform TEXT NOT NULL,
-    question_text TEXT,
-    current_price REAL,
-    volume REAL,
-    resolution_date DATE,
-    category TEXT,
-    related_ticker TEXT,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
-
-def _create_prediction_markets_db(db_path: str):
-    """Recreate prediction_markets table with the full schema the collector expects."""
-    conn = sqlite3.connect(db_path)
-    conn.execute("DROP TABLE IF EXISTS prediction_markets")
-    conn.executescript(PREDICTION_MARKETS_DDL)
-    conn.close()
-
-
 # ── _categorize_market ───────────────────────────────────────────
 
 
@@ -135,7 +109,7 @@ class TestCollect:
     @patch("collectors.polymarket.DB_PATH")
     @patch("collectors.polymarket._fetch_markets")
     def test_collect_upserts_relevant_markets(self, mock_fetch, mock_db_path, db_path):
-        _create_prediction_markets_db(db_path)
+
         mock_db_path.__str__ = lambda s: db_path
         # Patch DB_PATH to our temp db
         with patch("collectors.polymarket.DB_PATH", db_path):
@@ -159,7 +133,7 @@ class TestCollect:
 
     @patch("collectors.polymarket._fetch_markets")
     def test_collect_skips_below_min_volume(self, mock_fetch, db_path):
-        _create_prediction_markets_db(db_path)
+
         with patch("collectors.polymarket.DB_PATH", db_path):
             mock_fetch.return_value = [
                 self._make_market("Fed rate decision?", MIN_VOLUME - 1, "cond-low-vol"),
@@ -174,7 +148,7 @@ class TestCollect:
 
     @patch("collectors.polymarket._fetch_markets")
     def test_collect_skips_irrelevant_category(self, mock_fetch, db_path):
-        _create_prediction_markets_db(db_path)
+
         with patch("collectors.polymarket.DB_PATH", db_path):
             mock_fetch.return_value = [
                 self._make_market("Will it rain tomorrow?", 100000, "cond-weather"),
@@ -185,7 +159,7 @@ class TestCollect:
 
     @patch("collectors.polymarket._fetch_markets")
     def test_collect_upsert_updates_existing(self, mock_fetch, db_path):
-        _create_prediction_markets_db(db_path)
+
         with patch("collectors.polymarket.DB_PATH", db_path):
             # First run
             mock_fetch.return_value = [
@@ -216,7 +190,7 @@ class TestGetFomcProbabilities:
     """Tests for the get_fomc_probabilities function."""
 
     def test_returns_fomc_prob_dict(self, db_path):
-        _create_prediction_markets_db(db_path)
+
         conn = sqlite3.connect(db_path)
         # Seed FOMC prediction market rows
         fomc_rows = [
@@ -244,14 +218,14 @@ class TestGetFomcProbabilities:
         assert probs["hike_25"] == pytest.approx(0.10)
 
     def test_empty_table_returns_empty_dict(self, db_path):
-        _create_prediction_markets_db(db_path)
+
         conn = sqlite3.connect(db_path)
         probs = get_fomc_probabilities(conn)
         conn.close()
         assert probs == {}
 
     def test_non_fomc_rows_excluded(self, db_path):
-        _create_prediction_markets_db(db_path)
+
         conn = sqlite3.connect(db_path)
         # Insert a non-FOMC row that mentions "Fed" but is categorized as "tariff"
         conn.execute(

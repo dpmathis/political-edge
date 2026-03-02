@@ -14,6 +14,8 @@ from config import DB_PATH
 
 logger = logging.getLogger(__name__)
 
+QUADRANT_COLORS = {1: "#2ecc71", 2: "#f1c40f", 3: "#e67e22", 4: "#e74c3c"}
+
 QUADRANTS = {
     1: {
         "label": "Goldilocks",

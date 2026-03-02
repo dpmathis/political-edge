@@ -22,9 +22,12 @@ from config import DB_PATH
 from dashboard.components.glossary import inject_tooltip_css, tooltip, GLOSSARY
 from dashboard.components.research_charts import render_study_section
 
+from dashboard.components.freshness import render_freshness
+
 st.title("Pipeline Monitor")
 st.caption("Track proposed rules through the regulatory pipeline — where the alpha lives")
 inject_tooltip_css()
+render_freshness("pipeline_rules", "created_at", "Pipeline Rules")
 
 # Add pipeline-specific glossary terms
 GLOSSARY.update({

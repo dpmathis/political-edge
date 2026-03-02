@@ -13,9 +13,12 @@ import streamlit as st
 
 from config import DB_PATH
 
+from dashboard.components.freshness import render_freshness
+
 st.set_page_config(page_title="Government Contracts", layout="wide")
 st.title("Government Contracts")
 st.caption("Federal contract awards from USASpending with agency and watchlist analysis")
+render_freshness("contract_awards", "award_date", "Contract Awards")
 
 
 # --- Helpers ---

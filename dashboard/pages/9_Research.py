@@ -17,9 +17,12 @@ from dashboard.components.research_charts import (
     render_study_section,
 )
 
+from dashboard.components.freshness import render_freshness
+
 st.title("Research Reports")
 st.caption("Formal event studies validating trading signals with statistical rigor")
 inject_tooltip_css()
+render_freshness("event_studies", "created_at", "Event Studies")
 
 conn = sqlite3.connect(DB_PATH)
 

@@ -208,9 +208,9 @@ class TestComputeConfluence:
         _seed_watchlist(conn, "LMT", "Defense")
         conn.execute(
             """INSERT INTO prediction_markets
-               (question_text, category, related_ticker, current_price, volume)
-               VALUES (?, ?, ?, ?, ?)""",
-            ("Will defense spending increase?", "policy", "LMT", 0.75, 50000),
+               (contract_id, platform, question_text, category, related_ticker, current_price, volume)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            ("test-defense-1", "polymarket", "Will defense spending increase?", "policy", "LMT", 0.75, 50000),
         )
         conn.commit()
 

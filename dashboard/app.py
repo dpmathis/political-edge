@@ -124,6 +124,9 @@ st.markdown("""
 - **Research** — Event study research reports with interactive visualizations
 - **Pipeline** — Regulatory pipeline monitor and scenario builder
 - **Backtests** — Run and visualize hypothesis backtests
+- **Contracts** — Federal contract awards and watchlist-linked analysis
+- **Congress Trades** — Congressional stock trading disclosures
+- **Prediction Markets** — Political prediction market probabilities and trends
 """)
 
 # Show database stats
@@ -135,6 +138,8 @@ for label, table in [
     ("Lobbying Filings", "lobbying_filings"),
     ("Congress Trades", "congress_trades"),
     ("Contract Awards", "contract_awards"),
+    ("Prediction Markets", "prediction_markets"),
+    ("FOMC Events", "fomc_events"),
     ("Trading Signals", "trading_signals"),
     ("Market Data", "market_data"),
 ]:

@@ -14,9 +14,12 @@ import streamlit as st
 from config import DB_PATH
 from dashboard.components.glossary import inject_tooltip_css
 
+from dashboard.components.freshness import render_freshness
+
 st.title("Backtests")
 st.caption("Run event study backtests and compare hypothesis performance")
 inject_tooltip_css()
+render_freshness("event_studies", "created_at", "Backtest Results")
 
 # ── BacktestRunner import (may fail if dependencies are missing) ──
 
