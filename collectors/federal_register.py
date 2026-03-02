@@ -105,7 +105,7 @@ def _insert_events(conn: sqlite3.Connection, events: list[dict]) -> int:
     inserted = 0
     for event in events:
         try:
-            conn.execute(
+            cursor = conn.execute(
                 """INSERT OR IGNORE INTO regulatory_events
                    (source, source_id, event_type, title, summary, agency,
                     publication_date, effective_date, comment_deadline, url, raw_json)
@@ -124,7 +124,7 @@ def _insert_events(conn: sqlite3.Connection, events: list[dict]) -> int:
                     event["raw_json"],
                 ),
             )
-            if conn.total_changes:
+            if cursor.rowcount > 0:
                 inserted += 1
         except sqlite3.Error as e:
             logger.error("DB error inserting %s: %s", event["source_id"], e)

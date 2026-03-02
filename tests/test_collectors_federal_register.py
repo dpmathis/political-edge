@@ -205,13 +205,22 @@ class TestInsertEvents:
         events = [self._make_event("fr-new-001"), self._make_event("fr-new-002")]
         count = _insert_events(conn, events)
 
-        # Verify at least 1 inserted (INSERT OR IGNORE + total_changes logic)
-        assert count >= 1
+        assert count == 2
 
         rows = conn.execute(
             "SELECT source_id FROM regulatory_events WHERE source_id IN ('fr-new-001', 'fr-new-002')"
         ).fetchall()
         assert len(rows) == 2
+        conn.close()
+
+    def test_mixed_new_and_duplicate_returns_correct_count(self, db_path):
+        conn = sqlite3.connect(db_path)
+        # Insert one new event first
+        _insert_events(conn, [self._make_event("fr-mix-001")])
+        # Now insert one duplicate + one new
+        events = [self._make_event("fr-mix-001"), self._make_event("fr-mix-002")]
+        count = _insert_events(conn, events)
+        assert count == 1  # Only fr-mix-002 is new
         conn.close()
 
     def test_duplicate_source_id_skipped(self, db_path):

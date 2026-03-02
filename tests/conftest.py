@@ -107,7 +107,9 @@ CREATE TABLE IF NOT EXISTS macro_indicators (
     series_id TEXT NOT NULL,
     date DATE NOT NULL,
     value REAL,
+    rate_of_change_3m REAL,
     rate_of_change_6m REAL,
+    rate_of_change_12m REAL,
     UNIQUE(series_id, date)
 );
 
