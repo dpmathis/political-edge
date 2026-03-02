@@ -36,11 +36,13 @@ def load_signals(status_filter: str | None = None) -> pd.DataFrame:
                       time_horizon_days, expected_car,
                       historical_win_rate, historical_p_value, historical_n_events
                FROM trading_signals"""
+    params = []
     if status_filter and status_filter != "All":
-        query += f" WHERE status = '{status_filter}'"
+        query += " WHERE status = ?"
+        params = [status_filter]
     query += " ORDER BY signal_date DESC"
     try:
-        df = pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(query, conn, params=params)
     except Exception:
         df = pd.DataFrame()
     conn.close()

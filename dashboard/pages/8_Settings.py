@@ -248,6 +248,31 @@ with bt_col2:
         st.dataframe(bt_df, use_container_width=True, hide_index=True)
         st.caption("Significance: \\* p<0.10, \\*\\* p<0.05, \\*\\*\\* p<0.01")
 
+# ── Collection History ────────────────────────────────────────────
+st.markdown("---")
+st.subheader("Collection History")
+
+hist_conn = sqlite3.connect(DB_PATH)
+try:
+    hist_rows = hist_conn.execute(
+        """SELECT collector_name, status, records_added, errors, started_at
+           FROM data_collection_log
+           ORDER BY started_at DESC LIMIT 20"""
+    ).fetchall()
+except Exception:
+    hist_rows = []
+hist_conn.close()
+
+if hist_rows:
+    hist_df = pd.DataFrame(hist_rows, columns=["Collector", "Status", "Records", "Error", "Time"])
+    hist_df["Status"] = hist_df["Status"].apply(
+        lambda s: f"{'✅' if s == 'success' else '❌' if s == 'error' else '🔄'} {s}"
+    )
+    hist_df["Error"] = hist_df["Error"].apply(lambda x: (x[:80] + "...") if x and len(x) > 80 else (x or ""))
+    st.dataframe(hist_df, use_container_width=True, hide_index=True)
+else:
+    st.info("No collection history yet. Run 'Collect Now' above to populate.")
+
 # ── Data Sources ─────────────────────────────────────────────────
 st.markdown("---")
 st.subheader("Data Sources")

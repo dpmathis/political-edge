@@ -276,11 +276,14 @@ CREATE TABLE IF NOT EXISTS congress_trades (
 
 CREATE TABLE IF NOT EXISTS data_collection_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    collector TEXT NOT NULL,
-    status TEXT DEFAULT 'success',
+    collector_name TEXT NOT NULL,
+    run_type TEXT DEFAULT 'manual',
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
     records_added INTEGER DEFAULT 0,
-    error_message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    records_updated INTEGER DEFAULT 0,
+    errors TEXT,
+    status TEXT DEFAULT 'running'
 );
 
 CREATE TABLE IF NOT EXISTS company_contractor_map (

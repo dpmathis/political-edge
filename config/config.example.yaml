@@ -61,6 +61,10 @@ alerts:
       custom_query: true
       lookback_hours: 168
 
+    - name: "Stale Data Warning"
+      custom_query: true
+      lookback_hours: 24
+
 # Collection Settings
 collection:
   congress:

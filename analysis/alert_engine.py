@@ -163,6 +163,42 @@ def _check_pipeline_deadlines(conn: sqlite3.Connection) -> tuple[bool, str]:
     return True, "\n".join(lines)
 
 
+def _check_data_staleness(conn: sqlite3.Connection) -> tuple[bool, str]:
+    """Check if any key data source is more than its threshold days stale."""
+    from datetime import date as date_cls, datetime as dt_cls
+
+    checks = [
+        ("regulatory_events", "publication_date", 3),
+        ("market_data", "date", 2),
+        ("macro_indicators", "date", 7),
+        ("trading_signals", "signal_date", 3),
+    ]
+    stale = []
+    for table, col, max_days in checks:
+        try:
+            row = conn.execute(f"SELECT MAX({col}) FROM {table}").fetchone()
+            if row and row[0]:
+                latest = dt_cls.strptime(str(row[0])[:10], "%Y-%m-%d").date()
+                days_old = (date_cls.today() - latest).days
+                if days_old > max_days:
+                    stale.append(f"  {table}: {days_old} days old (max {max_days})")
+        except Exception:
+            pass
+
+    if not stale:
+        return False, ""
+
+    body = (
+        "Data Staleness Warning\n"
+        + "=" * 40
+        + "\n\n"
+        + "\n".join(stale)
+        + "\n\n"
+        + "Check collector logs and ensure the daily pipeline is running."
+    )
+    return True, body
+
+
 def _check_lobbying_spikes(conn: sqlite3.Connection) -> tuple[bool, str]:
     """Check for companies with >25% QoQ lobbying spend increase."""
     from collectors.lobbying import calculate_qoq_changes
@@ -222,6 +258,8 @@ def evaluate_and_send() -> int:
                     has_alert, body = _check_high_conviction_signals(conn)
                 elif "Pipeline" in name or "Deadline" in name:
                     has_alert, body = _check_pipeline_deadlines(conn)
+                elif "Stale" in name or "Staleness" in name:
+                    has_alert, body = _check_data_staleness(conn)
                 else:
                     continue
 
