@@ -192,14 +192,17 @@ else:
 st.markdown("---")
 st.subheader("Prediction Market Sentiment")
 
-pred_markets = pd.read_sql_query(
-    """SELECT question_text, current_price, volume, category, resolution_date, related_ticker
-       FROM prediction_markets
-       WHERE current_price IS NOT NULL
-       ORDER BY volume DESC
-       LIMIT 12""",
-    conn,
-)
+try:
+    pred_markets = pd.read_sql_query(
+        """SELECT question_text, current_price, volume, category, resolution_date, related_ticker
+           FROM prediction_markets
+           WHERE current_price IS NOT NULL
+           ORDER BY volume DESC
+           LIMIT 12""",
+        conn,
+    )
+except Exception:
+    pred_markets = pd.DataFrame()
 
 if not pred_markets.empty:
     # Show FOMC rate probabilities first if available

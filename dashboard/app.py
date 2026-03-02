@@ -35,7 +35,8 @@ def _ensure_db():
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall())
         conn.close()
-        if "fda_events" not in tables or "trading_signals" not in tables:
+        required = {"fda_events", "trading_signals", "prediction_markets", "data_collection_log"}
+        if not required.issubset(tables):
             from scripts.migrate_phase2 import main as migrate_main
             migrate_main()
         return
