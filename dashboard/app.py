@@ -26,30 +26,43 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SEED_DB_GZ = os.path.join(_PROJECT_ROOT, "data", "seed.db.gz")
 
 
+def _seed_version() -> str:
+    """Return a version string for the current seed.db.gz based on file size."""
+    if os.path.exists(_SEED_DB_GZ):
+        return str(os.path.getsize(_SEED_DB_GZ))
+    return ""
+
+
 def _ensure_db():
     """Auto-initialize DB: decompress seed if available, else create empty.
 
-    Always re-decompresses from seed.db.gz if the seed is newer than
-    the existing DB (i.e., a new deploy with updated seed data).
+    Tracks the seed version via a marker file so the DB is re-decompressed
+    whenever seed.db.gz changes (new deploy with updated data).
     """
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    marker_path = DB_PATH + ".seed_version"
 
-    # Re-decompress from seed if seed is newer than existing DB
     if os.path.exists(_SEED_DB_GZ):
-        seed_mtime = os.path.getmtime(_SEED_DB_GZ)
-        db_mtime = os.path.getmtime(DB_PATH) if os.path.exists(DB_PATH) else 0
+        current_version = _seed_version()
+        stored_version = ""
+        if os.path.exists(marker_path):
+            stored_version = open(marker_path).read().strip()
 
-        if seed_mtime > db_mtime:
+        if current_version != stored_version or not os.path.exists(DB_PATH):
+            # Seed changed or DB missing — re-decompress
             with gzip.open(_SEED_DB_GZ, "rb") as f_in:
                 with open(DB_PATH, "wb") as f_out:
                     shutil.copyfileobj(f_in, f_out)
-            # Run migration to ensure any new tables/columns exist
+            # Run migration for any new tables/columns
             from scripts.migrate_phase2 import main as migrate_main
             migrate_main()
+            # Write marker
+            with open(marker_path, "w") as f:
+                f.write(current_version)
             return
 
     if os.path.exists(DB_PATH):
-        # DB exists and is newer than seed — just ensure schema is up to date
+        # DB exists and seed hasn't changed — ensure schema is up to date
         conn = sqlite3.connect(DB_PATH)
         tables = set(r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"

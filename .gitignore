@@ -6,6 +6,7 @@ __pycache__/
 
 # Data (local DB and logs — seed.db.gz is tracked for cloud deploy)
 data/political_edge.db
+data/political_edge.db.seed_version
 data/political_edge.db.gz
 data/collector.log
 
