@@ -23,7 +23,10 @@ class BacktestRunner:
     def list_studies(self) -> list[str]:
         """List available backtest study names."""
         return ["tariff_sectors", "contract_awards", "fda_adcom",
-                "high_impact_regulatory", "fomc_drift"]
+                "high_impact_regulatory", "fomc_drift",
+                "report1_reg_shocks", "report2_eo_impact",
+                "report3_reg_pipeline", "report4_tariff_asymmetry",
+                "report5_macro_conditional"]
 
     def run_all(self) -> dict[str, EventStudyResults]:
         """Run all hypothesis backtests. Returns dict of name → results."""
@@ -44,6 +47,11 @@ class BacktestRunner:
             "fda_adcom": self.backtest_fda_adcom,
             "high_impact_regulatory": self.backtest_high_impact_regulatory,
             "fomc_drift": self.backtest_fomc_drift,
+            "report1_reg_shocks": self.backtest_report1,
+            "report2_eo_impact": self.backtest_report2,
+            "report3_reg_pipeline": self.backtest_report3,
+            "report4_tariff_asymmetry": self.backtest_report4,
+            "report5_macro_conditional": self.backtest_report5,
         }
         func = method_map.get(name)
         if not func:
@@ -258,4 +266,45 @@ class BacktestRunner:
             window_post=2,
             benchmark="SPY",
             method="raw_returns",  # Use raw returns since SPY is the benchmark
+        )
+
+    # ── Research Report Backtests ──────────────────────────────────
+
+    def backtest_report1(self) -> EventStudyResults:
+        """Report 1: Regulatory Intensity Shocks."""
+        from analysis.research.report1_reg_shocks import run_report
+        result = run_report(self.db_path)
+        return result.event_studies[0] if result.event_studies else self._empty_result("report1_reg_shocks")
+
+    def backtest_report2(self) -> EventStudyResults:
+        """Report 2: Executive Order Market Impact."""
+        from analysis.research.report2_eo_impact import run_report
+        result = run_report(self.db_path)
+        return result.event_studies[0] if result.event_studies else self._empty_result("report2_eo_impact")
+
+    def backtest_report3(self) -> EventStudyResults:
+        """Report 3: Regulatory Pipeline Rotation."""
+        from analysis.research.report3_reg_pipeline import run_report
+        result = run_report(self.db_path)
+        return result.event_studies[0] if result.event_studies else self._empty_result("report3_reg_pipeline")
+
+    def backtest_report4(self) -> EventStudyResults:
+        """Report 4: Tariff Announcement Asymmetry."""
+        from analysis.research.report4_tariff_asymmetry import run_report
+        result = run_report(self.db_path)
+        return result.event_studies[0] if result.event_studies else self._empty_result("report4_tariff_asymmetry")
+
+    def backtest_report5(self) -> EventStudyResults:
+        """Report 5: Macro Regime-Conditional Signal Returns."""
+        from analysis.research.report5_macro_conditional import run_report
+        result = run_report(db_path=self.db_path)
+        return result.event_studies[0] if result.event_studies else self._empty_result("report5_macro_conditional")
+
+    def _empty_result(self, name: str) -> EventStudyResults:
+        """Return a placeholder result when a report has no event studies."""
+        return EventStudyResults(
+            study_name=name, hypothesis="", method="market_adjusted",
+            benchmark="SPY", window_pre=1, window_post=5, num_events=0,
+            mean_car=0.0, median_car=0.0, t_statistic=0.0,
+            p_value=1.0, win_rate=0.0, sharpe_ratio=0.0,
         )

@@ -101,6 +101,13 @@ SIGNAL_RULES = {
         "default_direction": "long",
         "base_conviction": "medium",
     },
+    "pipeline_pressure": {
+        "description": "Sector rotation based on regulatory pipeline pressure (Report 3)",
+        "source_table": "regulatory_events",
+        "trigger_sql": None,  # Custom — uses report3 pipeline pressure logic
+        "default_direction": "long",
+        "base_conviction": "medium",
+    },
 }
 
 # Max holding period for active signals
@@ -567,6 +574,87 @@ def _generate_fomc_signals(conn: sqlite3.Connection, macro_modifier: float, macr
     return signals
 
 
+def _generate_pipeline_pressure_signals(conn: sqlite3.Connection, macro_modifier: float, macro_quadrant: int | None) -> list[dict]:
+    """Generate sector rotation signals from regulatory pipeline pressure.
+
+    Overweight sectors with low pipeline pressure (few pending rules),
+    underweight sectors with high pressure (many pending rules without final resolution).
+    """
+    signals = []
+
+    try:
+        # Count proposed rules past comment_deadline without a matching final rule
+        # per sector, in the last 90 days
+        rows = conn.execute(
+            """SELECT sectors, COUNT(*) as pending_count
+               FROM regulatory_events
+               WHERE event_type = 'proposed_rule'
+                 AND comment_deadline IS NOT NULL
+                 AND comment_deadline <= date('now')
+                 AND sectors IS NOT NULL AND sectors != ''
+                 AND id NOT IN (
+                     SELECT pr.id FROM regulatory_events pr
+                     JOIN regulatory_events fr ON fr.event_type = 'final_rule'
+                       AND fr.agency = pr.agency
+                       AND fr.publication_date > pr.publication_date
+                       AND fr.publication_date <= date(pr.comment_deadline, '+365 days')
+                     WHERE pr.event_type = 'proposed_rule'
+                 )
+                 AND publication_date >= date('now', '-180 days')
+               GROUP BY sectors
+               ORDER BY pending_count DESC"""
+        ).fetchall()
+    except Exception as e:
+        logger.warning("Pipeline pressure query failed: %s", e)
+        return signals
+
+    if not rows:
+        return signals
+
+    from analysis.research.base import SECTOR_ETF_ONLY
+
+    # Find the sector with lowest pressure → long signal
+    sector_pressure = {}
+    for sectors_str, count in rows:
+        for sector in sectors_str.split(","):
+            sector = sector.strip()
+            if sector in SECTOR_ETF_ONLY:
+                sector_pressure[sector] = sector_pressure.get(sector, 0) + count
+
+    if not sector_pressure:
+        return signals
+
+    # Sort by pressure: lowest pressure sectors are candidates for long
+    sorted_sectors = sorted(sector_pressure.items(), key=lambda x: x[1])
+
+    # Signal on the lowest-pressure sector if we haven't recently
+    for sector, pressure in sorted_sectors[:2]:
+        ticker = SECTOR_ETF_ONLY[sector]
+        if _has_recent_signal(conn, ticker, "pipeline_pressure", days=20):
+            continue
+
+        rationale = (
+            f"Low regulatory pipeline pressure for {sector}: "
+            f"{pressure} pending proposed rules past deadline. "
+            f"Sector may face less regulatory headwind."
+        )
+
+        signals.append({
+            "ticker": ticker,
+            "signal_type": "pipeline_pressure",
+            "direction": "long",
+            "conviction": "medium",
+            "source_event_id": None,
+            "source_table": "regulatory_events",
+            "rationale": rationale,
+            "macro_regime_at_signal": macro_quadrant,
+            "position_size_modifier": macro_modifier,
+            "time_horizon_days": 20,
+        })
+
+    return signals
+
+
 def _apply_prediction_market_modifier(sig: dict, conn: sqlite3.Connection) -> None:
     """Adjust conviction based on prediction market probabilities.
 
@@ -708,6 +796,7 @@ def generate_signals() -> list[dict]:
         ("eo_signal", _generate_eo_signals),
         ("reg_shock", _generate_reg_shock_signals),
         ("fomc_drift", _generate_fomc_signals),
+        ("pipeline_pressure", _generate_pipeline_pressure_signals),
     ]
 
     for name, gen_func in generators:

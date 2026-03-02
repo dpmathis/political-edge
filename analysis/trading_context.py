@@ -18,6 +18,9 @@ SIGNAL_STUDY_MAP = {
     "contract_momentum": "defense_regulatory",
     "lobbying_spike": None,  # No dedicated study
     "macro_regime": None,
+    "reg_shock_expanded": "report1_reg_shocks_aggregate",
+    "pipeline_pressure": "report3_pipeline_proposed_rule",
+    "tariff_asymmetry": "report4_tariff_aggregate",
 }
 
 # Default time horizons (trading days) by signal type
@@ -29,6 +32,9 @@ TIME_HORIZONS = {
     "macro_regime": 20,
     "reg_shock": 5,
     "fomc_drift": 5,
+    "reg_shock_expanded": 5,
+    "pipeline_pressure": 20,
+    "tariff_asymmetry": 5,
 }
 
 # EO signal types get their expected_car from eo_classifier directly
