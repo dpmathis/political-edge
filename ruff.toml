@@ -1,3 +1,15 @@
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "C90"]
+ignore = ["E501"]
+
+[lint.mccabe]
+max-complexity = 20
+
 [lint.per-file-ignores]
-# Streamlit pages run inject_tooltip_css() at module level before importing freshness
+# Streamlit pages use st.set_page_config() before importing other modules
 "dashboard/pages/*.py" = ["E402"]
+# Multi-section scoring function and runner script are inherently complex
+"analysis/confluence.py" = ["C901"]
+"scripts/run_collectors.py" = ["C901"]

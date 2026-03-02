@@ -19,6 +19,7 @@ from dashboard.components.research_charts import (
 
 from dashboard.components.freshness import render_freshness
 
+st.set_page_config(page_title="Research", layout="wide")
 st.title("Research Reports")
 st.caption("Formal event studies validating trading signals with statistical rigor")
 inject_tooltip_css()

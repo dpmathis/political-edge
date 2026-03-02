@@ -28,4 +28,4 @@ jobs:
         run: ruff check collectors/ analysis/ execution/ scripts/ tests/ dashboard/
 
       - name: Run tests with coverage
-        run: python -m pytest tests/ -v --cov=collectors --cov=analysis --cov=execution --cov-report=term-missing --cov-fail-under=55
+        run: python -m pytest tests/ -v --cov=collectors --cov=analysis --cov=execution --cov-report=term-missing --cov-fail-under=57

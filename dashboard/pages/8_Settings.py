@@ -15,6 +15,7 @@ import streamlit as st
 from config import DB_PATH
 from dashboard.collection_logger import log_collection_step
 
+st.set_page_config(page_title="Settings", layout="wide")
 st.title("Settings & Data")
 st.caption("Data collection, backfill, backtesting, and data health monitoring")
 

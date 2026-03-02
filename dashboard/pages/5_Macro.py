@@ -16,6 +16,7 @@ import streamlit as st
 from config import DB_PATH
 from dashboard.components.glossary import inject_tooltip_css, tooltip
 
+st.set_page_config(page_title="Macro & Fed", layout="wide")
 st.title("Macro & Fed Dashboard")
 st.caption("Hedgeye-style regime classifier, key economic indicators, and FOMC tracker")
 inject_tooltip_css()

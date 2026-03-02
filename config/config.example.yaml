@@ -7,6 +7,10 @@ api_keys:
   alpaca_key_id: ""         # APCA_API_KEY_ID env var
   alpaca_secret_key: ""     # APCA_API_SECRET_KEY env var
 
+# Dashboard
+dashboard:
+  url: "https://political-edge.streamlit.app"
+
 # Safety: must be false. Paper trading only.
 live_trading_enabled: false
 

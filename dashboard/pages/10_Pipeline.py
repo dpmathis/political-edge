@@ -24,6 +24,7 @@ from dashboard.components.research_charts import render_study_section
 
 from dashboard.components.freshness import render_freshness
 
+st.set_page_config(page_title="Pipeline", layout="wide")
 st.title("Pipeline Monitor")
 st.caption("Track proposed rules through the regulatory pipeline — where the alpha lives")
 inject_tooltip_css()

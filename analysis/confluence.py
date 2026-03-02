@@ -102,6 +102,7 @@ def _compute(ticker: str, conn: sqlite3.Connection) -> dict:
                 "direction": "neutral",
             })
     except Exception:
+        logger.exception("Confluence: failed to check Macro Regime for %s", ticker)
         factors.append({
             "source": "Macro Regime",
             "signal": "Unable to check",
@@ -140,6 +141,7 @@ def _compute(ticker: str, conn: sqlite3.Connection) -> dict:
                 "direction": "neutral",
             })
     except Exception:
+        logger.exception("Confluence: failed to check Trading Signal for %s", ticker)
         factors.append({
             "source": "Trading Signal",
             "signal": "Unable to check",
@@ -183,6 +185,7 @@ def _compute(ticker: str, conn: sqlite3.Connection) -> dict:
                 "direction": "neutral",
             })
     except Exception:
+        logger.exception("Confluence: failed to check Lobbying Spend for %s", ticker)
         factors.append({
             "source": "Lobbying Spend",
             "signal": "No data",
@@ -226,6 +229,7 @@ def _compute(ticker: str, conn: sqlite3.Connection) -> dict:
                 "direction": "neutral",
             })
     except Exception:
+        logger.exception("Confluence: failed to check Regulatory Event for %s", ticker)
         factors.append({
             "source": "Regulatory Event",
             "signal": "Unable to check",
@@ -274,6 +278,7 @@ def _compute(ticker: str, conn: sqlite3.Connection) -> dict:
                 "direction": "neutral",
             })
     except Exception:
+        logger.exception("Confluence: failed to check Congress Trades for %s", ticker)
         factors.append({
             "source": "Congress Trades",
             "signal": "No data",
@@ -315,6 +320,7 @@ def _compute(ticker: str, conn: sqlite3.Connection) -> dict:
                 "direction": "neutral",
             })
     except Exception:
+        logger.exception("Confluence: failed to check Prediction Market for %s", ticker)
         factors.append({
             "source": "Prediction Market",
             "signal": "No data",
@@ -351,6 +357,7 @@ def _compute(ticker: str, conn: sqlite3.Connection) -> dict:
                 "direction": "neutral",
             })
     except Exception:
+        logger.exception("Confluence: failed to check FDA Catalyst for %s", ticker)
         factors.append({
             "source": "FDA Catalyst",
             "signal": "No data",

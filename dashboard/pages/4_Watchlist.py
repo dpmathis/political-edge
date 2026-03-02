@@ -77,6 +77,7 @@ def _generate_thesis(ticker: str, conf: dict, company_info, conn: sqlite3.Connec
     )
 
 
+st.set_page_config(page_title="Watchlist", layout="wide")
 st.title("Watchlist")
 st.caption("Confluence-driven ticker deep dive across all data sources")
 inject_tooltip_css()

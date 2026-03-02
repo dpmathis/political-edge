@@ -23,6 +23,7 @@ from dashboard.components.event_card import (
 from dashboard.components.price_chart import render_price_chart
 from dashboard.components.glossary import inject_tooltip_css, tooltip
 
+st.set_page_config(page_title="RegWatch", layout="wide")
 st.title("RegWatch")
 st.caption("Regulatory & political event feed with sector mapping")
 inject_tooltip_css()

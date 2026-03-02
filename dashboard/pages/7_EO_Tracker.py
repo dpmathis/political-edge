@@ -23,6 +23,7 @@ from dashboard.components.glossary import inject_tooltip_css, render_glossary_te
 
 from dashboard.components.freshness import render_freshness
 
+st.set_page_config(page_title="EO Tracker", layout="wide")
 st.title("Executive Order Tracker")
 st.caption("Real-time topic classification with evidence-based trading signals")
 inject_tooltip_css()

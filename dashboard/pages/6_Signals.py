@@ -15,6 +15,7 @@ from config import DB_PATH
 from dashboard.components.glossary import inject_tooltip_css, tooltip
 from dashboard.components.signal_card import render_signal_card
 
+st.set_page_config(page_title="Signals", layout="wide")
 st.title("Signals & Paper Trading")
 st.caption("Trading signal management and paper portfolio tracking")
 inject_tooltip_css()

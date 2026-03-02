@@ -71,7 +71,7 @@ def _format_event_body(rule_name: str, rows: list[tuple], columns: list[str]) ->
     lines.extend([
         "",
         "=" * 40,
-        "View in dashboard: https://political-edge.streamlit.app",
+        f"View in dashboard: {load_config().get('dashboard', {}).get('url', 'https://political-edge.streamlit.app')}",
     ])
 
     return "\n".join(lines)
