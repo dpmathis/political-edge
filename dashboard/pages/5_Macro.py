@@ -25,6 +25,13 @@ QUADRANT_COLORS = {1: "#2ecc71", 2: "#f1c40f", 3: "#e67e22", 4: "#e74c3c"}
 QUADRANT_LABELS = {1: "Goldilocks", 2: "Reflation", 3: "Stagflation", 4: "Deflation"}
 
 
+def _hex_to_rgba(hex_color: str, alpha: float = 0.13) -> str:
+    """Convert hex color to rgba string for Plotly compatibility."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 @st.cache_data(ttl=300)
 def load_regime_data():
     conn = sqlite3.connect(DB_PATH)
@@ -197,7 +204,7 @@ for i, (series_id, label, col_name, fmt) in enumerate(indicators):
                     mode="lines",
                     line=dict(color=color, width=2),
                     fill="tozeroy",
-                    fillcolor=f"{color}22",
+                    fillcolor=_hex_to_rgba(color),
                 ))
                 fig.update_layout(
                     height=80, margin=dict(l=0, r=0, t=0, b=0),
