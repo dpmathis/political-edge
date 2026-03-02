@@ -18,17 +18,14 @@ import streamlit as st
 from config import DB_PATH
 from dashboard.components.briefing import render_briefing
 from dashboard.components.color_system import (
-    DIRECTION_COLORS,
     REGIME_COLORS,
     hex_to_rgba,
-    render_direction_badge,
 )
 from dashboard.components.event_card import render_event_with_context
 from dashboard.components.glossary import (
     inject_tooltip_css,
     render_glossary_term,
     render_metric_with_tooltip,
-    tooltip,
 )
 from dashboard.components.signal_card import render_signal_card
 

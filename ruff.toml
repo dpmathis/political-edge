@@ -1,0 +1,3 @@
+[lint.per-file-ignores]
+# Streamlit pages run inject_tooltip_css() at module level before importing freshness
+"dashboard/pages/*.py" = ["E402"]

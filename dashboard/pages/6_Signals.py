@@ -6,15 +6,13 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import sqlite3
-from datetime import date
 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 
 from config import DB_PATH
-from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, tooltip
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 from dashboard.components.signal_card import render_signal_card
 
 st.title("Signals & Paper Trading")

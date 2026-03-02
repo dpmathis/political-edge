@@ -5,11 +5,7 @@ import sqlite3
 import streamlit as st
 
 from dashboard.components.color_system import (
-    DIRECTION_COLORS,
     IMPACT_SEVERITY,
-    render_direction_badge,
-    render_impact_indicator,
-    render_impact_dot,
 )
 
 # Color coding for impact scores (kept for backward compatibility)
@@ -86,8 +82,8 @@ def render_so_what(event: dict, conn: sqlite3.Connection = None) -> str:
     event_type = event.get("event_type", "")
     agency = event.get("agency", "")
     tickers = event.get("tickers", "")
-    impact_score = event.get("impact_score", 0) or 0
-    title = event.get("title", "")
+    _ = event.get("impact_score", 0) or 0
+    _ = event.get("title", "")
 
     parts = []
 
@@ -126,7 +122,7 @@ def render_so_what(event: dict, conn: sqlite3.Connection = None) -> str:
                 q = regime_row[0]
                 label = regime_row[1]
                 info = QUADRANTS.get(q, {})
-                bias = info.get("equity_bias", "neutral").replace("_", " ")
+                _ = info.get("equity_bias", "neutral").replace("_", " ")
                 modifier = info.get("position_modifier", 1.0)
                 if modifier < 0.8:
                     parts.append(f"Macro caution: {label} regime suggests reduced positions ({modifier:.1f}x).")

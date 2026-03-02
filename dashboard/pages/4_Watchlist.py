@@ -19,15 +19,11 @@ from config import DB_PATH
 from analysis.confluence import compute_confluence
 from dashboard.components.color_system import (
     DIRECTION_COLORS,
-    render_direction_badge,
-    render_impact_dot,
 )
 from dashboard.components.confluence_card import render_confluence_card
-from dashboard.components.event_card import render_event_with_context, render_so_what
+from dashboard.components.event_card import render_event_with_context
 from dashboard.components.glossary import (
     inject_tooltip_css,
-    render_metric_with_tooltip,
-    tooltip,
 )
 from dashboard.components.price_chart import render_price_chart
 

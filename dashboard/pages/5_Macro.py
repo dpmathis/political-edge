@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from config import DB_PATH
-from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, render_glossary_term, tooltip
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 
 st.title("Macro & Fed Dashboard")
 st.caption("Hedgeye-style regime classifier, key economic indicators, and FOMC tracker")

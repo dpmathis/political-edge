@@ -303,7 +303,9 @@ CREATE TABLE IF NOT EXISTS sector_keyword_map (
 
 CREATE INDEX IF NOT EXISTS idx_market_ticker ON market_data(ticker, date);
 CREATE INDEX IF NOT EXISTS idx_events_date ON regulatory_events(publication_date DESC);
+CREATE INDEX IF NOT EXISTS idx_events_impact ON regulatory_events(impact_score);
 CREATE INDEX IF NOT EXISTS idx_pipeline_status ON pipeline_rules(status);
+CREATE INDEX IF NOT EXISTS idx_signals_dedup ON trading_signals(ticker, signal_type, signal_date);
 """
 
 

@@ -144,6 +144,8 @@ CREATE TABLE IF NOT EXISTS trading_signals (
 CREATE INDEX IF NOT EXISTS idx_signals_date ON trading_signals(signal_date DESC);
 CREATE INDEX IF NOT EXISTS idx_signals_ticker ON trading_signals(ticker);
 CREATE INDEX IF NOT EXISTS idx_signals_status ON trading_signals(status);
+CREATE INDEX IF NOT EXISTS idx_signals_dedup ON trading_signals(ticker, signal_type, signal_date);
+CREATE INDEX IF NOT EXISTS idx_events_impact ON regulatory_events(impact_score);
 
 CREATE TABLE IF NOT EXISTS paper_trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

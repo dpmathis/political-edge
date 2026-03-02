@@ -18,12 +18,10 @@ from dashboard.components.event_card import (
     render_impact_badge,
     format_event_type,
     TRADE_ACTION_OPTIONS,
-    render_event_with_context,
     render_so_what,
 )
 from dashboard.components.price_chart import render_price_chart
-from dashboard.components.color_system import render_impact_indicator, IMPACT_SEVERITY
-from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, tooltip
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 
 st.title("RegWatch")
 st.caption("Regulatory & political event feed with sector mapping")

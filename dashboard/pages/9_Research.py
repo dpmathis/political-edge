@@ -14,10 +14,6 @@ import streamlit as st
 from config import DB_PATH
 from dashboard.components.glossary import inject_tooltip_css
 from dashboard.components.research_charts import (
-    render_kpi_row,
-    render_car_timeline,
-    render_per_event_scatter,
-    render_study_detail,
     render_study_section,
 )
 

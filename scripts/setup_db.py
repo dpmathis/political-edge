@@ -165,6 +165,7 @@ CREATE INDEX IF NOT EXISTS idx_events_date ON regulatory_events(publication_date
 CREATE INDEX IF NOT EXISTS idx_events_type ON regulatory_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_events_agency ON regulatory_events(agency);
 CREATE INDEX IF NOT EXISTS idx_events_sectors ON regulatory_events(sectors);
+CREATE INDEX IF NOT EXISTS idx_events_impact ON regulatory_events(impact_score);
 CREATE INDEX IF NOT EXISTS idx_contracts_date ON contract_awards(award_date DESC);
 CREATE INDEX IF NOT EXISTS idx_contracts_ticker ON contract_awards(recipient_ticker);
 CREATE INDEX IF NOT EXISTS idx_lobbying_client ON lobbying_filings(client_ticker);
@@ -176,6 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_pipeline_sector ON pipeline_rules(sector);
 CREATE INDEX IF NOT EXISTS idx_pipeline_proposed ON pipeline_rules(proposed_event_id);
 CREATE INDEX IF NOT EXISTS idx_pipeline_deadline ON pipeline_rules(comment_deadline);
 CREATE INDEX IF NOT EXISTS idx_pipeline_proposed_date ON pipeline_rules(proposed_date);
+CREATE INDEX IF NOT EXISTS idx_signals_dedup ON trading_signals(ticker, signal_type, signal_date);
 """
 
 

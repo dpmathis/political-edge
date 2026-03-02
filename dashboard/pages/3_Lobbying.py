@@ -9,11 +9,10 @@ import sqlite3
 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 
 from config import DB_PATH
-from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, render_glossary_term, tooltip
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 
 st.title("Lobbying Activity")
 st.caption("Lobbying disclosure filings with QoQ spending analysis")

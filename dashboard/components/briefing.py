@@ -101,7 +101,7 @@ def _build_briefing(conn: sqlite3.Connection) -> str:
         ).fetchall()
         for row in fda:
             ticker = row[0] or ""
-            drug = row[1] or "a drug"
+            _ = row[1] or "a drug"
             days = (date.fromisoformat(row[3]) - today).days
             catalyst_parts.append(f"{ticker} has a {row[2].replace('_', ' ')} in {days} day{'s' if days != 1 else ''}")
     except Exception:

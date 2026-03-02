@@ -19,8 +19,7 @@ from analysis.eo_classifier import (
     classify_eo,
 )
 from config import DB_PATH
-from dashboard.components.color_system import render_direction_badge, CONVICTION_COLORS
-from dashboard.components.glossary import inject_tooltip_css, render_glossary_term, tooltip
+from dashboard.components.glossary import inject_tooltip_css, render_glossary_term
 
 st.title("Executive Order Tracker")
 st.caption("Real-time topic classification with evidence-based trading signals")

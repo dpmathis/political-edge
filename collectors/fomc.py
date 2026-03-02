@@ -49,11 +49,27 @@ def score_hawkish_dovish(text: str) -> float:
 def _scrape_fomc_calendar() -> list[dict]:
     """Scrape FOMC calendar page for meeting links and statements."""
     url = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
-    try:
-        resp = requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        logger.error("Failed to fetch FOMC calendar: %s", e)
+    resp = None
+    for attempt in range(3):
+        try:
+            resp = requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
+            resp.raise_for_status()
+            break
+        except requests.exceptions.HTTPError as e:
+            if resp.status_code == 429:
+                wait = 2 ** (attempt + 1)
+                logger.warning("Rate limited, waiting %ds", wait)
+                time.sleep(wait)
+                continue
+            logger.error("HTTP error fetching FOMC calendar: %s", e)
+            return []
+        except requests.exceptions.RequestException as e:
+            if attempt < 2:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            logger.error("Failed to fetch FOMC calendar: %s", e)
+            return []
+    else:
         return []
 
     soup = BeautifulSoup(resp.text, "lxml")
@@ -87,11 +103,27 @@ def _scrape_fomc_calendar() -> list[dict]:
 
 def _scrape_statement(url: str) -> str | None:
     """Scrape the full text of an FOMC statement."""
-    try:
-        resp = requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        logger.error("Failed to fetch statement from %s: %s", url, e)
+    resp = None
+    for attempt in range(3):
+        try:
+            resp = requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
+            resp.raise_for_status()
+            break
+        except requests.exceptions.HTTPError as e:
+            if resp.status_code == 429:
+                wait = 2 ** (attempt + 1)
+                logger.warning("Rate limited, waiting %ds", wait)
+                time.sleep(wait)
+                continue
+            logger.error("HTTP error fetching statement from %s: %s", url, e)
+            return None
+        except requests.exceptions.RequestException as e:
+            if attempt < 2:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            logger.error("Failed to fetch statement from %s: %s", url, e)
+            return None
+    else:
         return None
 
     soup = BeautifulSoup(resp.text, "lxml")

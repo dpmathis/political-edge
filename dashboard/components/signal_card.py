@@ -7,7 +7,6 @@ entry/stop/TP, historical stats, and cross-source evidence checklist.
 import sqlite3
 from datetime import date, timedelta
 
-import pandas as pd
 import streamlit as st
 
 from config import DB_PATH
@@ -169,7 +168,7 @@ def _render_card_html(signal: dict, show_evidence: bool, conn: sqlite3.Connectio
     signal_date = signal.get("signal_date", "")
 
     dir_color = DIRECTION_COLORS.get(direction, DIRECTION_COLORS["neutral"])
-    conv_color = CONVICTION_COLORS.get(conviction, CONVICTION_COLORS["low"])
+    _ = CONVICTION_COLORS.get(conviction, CONVICTION_COLORS["low"])
 
     # Direction badge and conviction bar HTML
     dir_badge = render_direction_badge(direction)

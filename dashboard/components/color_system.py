@@ -8,7 +8,6 @@ Establishes a strict color language across all pages:
 - Purple = Macro regime / Contextual overlay
 """
 
-import streamlit as st
 
 # ── Direction Colors ──────────────────────────────────────────────────
 DIRECTION_COLORS = {

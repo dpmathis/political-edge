@@ -7,14 +7,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import json
 import sqlite3
-from datetime import date, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
 from config import DB_PATH
-from dashboard.components.glossary import inject_tooltip_css, render_metric_with_tooltip, render_glossary_term, tooltip
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 
 st.title("FDA Catalysts")
 st.caption("FDA advisory committee votes, approvals, and event study results")

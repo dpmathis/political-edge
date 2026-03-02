@@ -379,6 +379,85 @@ def _generate_lobbying_signals(conn: sqlite3.Connection, macro_modifier: float, 
     return signals
 
 
+def _generate_macro_regime_signals(conn: sqlite3.Connection, macro_modifier: float, macro_quadrant: int | None) -> list[dict]:
+    """Generate sector rotation signals when the macro regime transitions.
+
+    Detects quadrant changes in the macro_regimes table and produces:
+    - Long signals for newly-favored sector ETFs
+    - Short signals for newly-avoided sector ETFs
+    """
+    from analysis.macro_regime import QUADRANTS
+
+    signals = []
+
+    rows = conn.execute(
+        "SELECT date, quadrant, confidence FROM macro_regimes ORDER BY date DESC LIMIT 2"
+    ).fetchall()
+
+    if len(rows) < 2:
+        return signals
+
+    new_date, new_q, confidence = rows[0]
+    _, old_q, _ = rows[1]
+
+    if new_q == old_q:
+        return signals  # No transition
+
+    old_info = QUADRANTS.get(old_q, {})
+    new_info = QUADRANTS.get(new_q, {})
+
+    old_favored = set(old_info.get("favored_sectors", []))
+    new_favored = set(new_info.get("favored_sectors", []))
+    old_avoid = set(old_info.get("avoid_sectors", []))
+    new_avoid = set(new_info.get("avoid_sectors", []))
+
+    # Map confidence to conviction
+    conviction = confidence if confidence in ("high", "medium", "low") else "medium"
+
+    old_label = old_info.get("label", f"Q{old_q}")
+    new_label = new_info.get("label", f"Q{new_q}")
+    transition_desc = f"Q{old_q} {old_label} -> Q{new_q} {new_label}"
+
+    # Long newly-favored ETFs (in new favored but not in old favored)
+    for etf in sorted(new_favored - old_favored):
+        if _has_recent_signal(conn, etf, "macro_regime", days=20):
+            continue
+        signals.append({
+            "ticker": etf,
+            "signal_type": "macro_regime",
+            "direction": "long",
+            "conviction": conviction,
+            "source_event_id": None,
+            "source_table": "macro_regimes",
+            "rationale": f"Macro regime shift: {transition_desc}. {etf} newly favored.",
+            "macro_regime_at_signal": macro_quadrant,
+            "position_size_modifier": macro_modifier,
+            "time_horizon_days": 20,
+        })
+
+    # Short newly-avoided ETFs (in new avoid but not in old avoid)
+    for etf in sorted(new_avoid - old_avoid):
+        if _has_recent_signal(conn, etf, "macro_regime", days=20):
+            continue
+        signals.append({
+            "ticker": etf,
+            "signal_type": "macro_regime",
+            "direction": "short",
+            "conviction": conviction,
+            "source_event_id": None,
+            "source_table": "macro_regimes",
+            "rationale": f"Macro regime shift: {transition_desc}. {etf} newly to avoid.",
+            "macro_regime_at_signal": macro_quadrant,
+            "position_size_modifier": macro_modifier,
+            "time_horizon_days": 20,
+        })
+
+    if signals:
+        logger.info("Macro regime transition %s: %d rotation signals", transition_desc, len(signals))
+
+    return signals
+
+
 def _generate_eo_signals(conn: sqlite3.Connection, macro_modifier: float, macro_quadrant: int | None) -> list[dict]:
     """Generate signals from recent executive orders using topic classification."""
     signals = []
@@ -864,6 +943,7 @@ def generate_signals() -> list[dict]:
         ("contract_momentum", _generate_contract_signals),
         ("regulatory_event", _generate_regulatory_signals),
         ("lobbying_spike", _generate_lobbying_signals),
+        ("macro_regime", _generate_macro_regime_signals),
         ("eo_signal", _generate_eo_signals),
         ("reg_shock", _generate_reg_shock_signals),
         ("fomc_drift", _generate_fomc_signals),
