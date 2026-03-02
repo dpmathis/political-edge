@@ -10,6 +10,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import DB_PATH
+from dashboard.collection_logger import log_collection_step
 
 from collectors import federal_register, market_data, fda_calendar
 from collectors import congress, lobbying, congress_trades, regulations_gov
@@ -33,28 +34,7 @@ logger = logging.getLogger("run_collectors")
 
 def _log_collection(conn, collector_name, func, *args, **kwargs):
     """Run a collector and log the result to data_collection_log."""
-    conn.execute(
-        "INSERT INTO data_collection_log (collector_name, status, started_at) VALUES (?, 'running', CURRENT_TIMESTAMP)",
-        (collector_name,),
-    )
-    log_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-    conn.commit()
-    try:
-        result = func(*args, **kwargs)
-        records = result if isinstance(result, int) else 0
-        conn.execute(
-            "UPDATE data_collection_log SET status = 'success', records_added = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (records, log_id),
-        )
-        conn.commit()
-        return result
-    except Exception as e:
-        conn.execute(
-            "UPDATE data_collection_log SET status = 'error', errors = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (str(e)[:500], log_id),
-        )
-        conn.commit()
-        raise
+    return log_collection_step(conn, collector_name, func, *args, **kwargs)
 
 
 def main():

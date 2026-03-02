@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from config import DB_PATH
+from dashboard.collection_logger import log_collection_step
 
 st.title("Settings & Data")
 st.caption("Data collection, backfill, backtesting, and data health monitoring")
@@ -60,6 +61,7 @@ COLLECT_STEPS = [
     ("Congress.gov", "collectors.congress", "collect", {}),
     ("Regulations.gov", "collectors.regulations_gov", "collect", {}),
     ("Lobbying Filings", "collectors.lobbying", "collect", {}),
+    ("USASpending", "collectors.usaspending", "collect", {}),
     ("Congress Trades", "collectors.congress_trades", "collect", {}),
     ("FRED Macro Data", "collectors.fred_macro", "collect", {}),
     ("FOMC Events", "collectors.fomc", "collect", {}),
@@ -67,10 +69,24 @@ COLLECT_STEPS = [
 ]
 
 
+def _run_fda_enrichment():
+    """Run FDA event enrichment (drug/company/ticker matching + openFDA)."""
+    from scripts.enrich_fda_events import enrich_existing_records, fetch_openfda_approvals, _load_pharma_lookup
+    lookup = _load_pharma_lookup()
+    fda_conn = sqlite3.connect(DB_PATH)
+    try:
+        enriched = enrich_existing_records(fda_conn, lookup)
+        new_approvals = fetch_openfda_approvals(fda_conn, lookup)
+        return enriched + new_approvals
+    finally:
+        fda_conn.close()
+
+
 def _run_collection(steps, progress_bar, status_text):
-    """Run a list of collection steps with progress tracking."""
+    """Run a list of collection steps with progress tracking and logging."""
     results = {}
-    total = len(steps) + 2  # +1 for regime classification, +1 for signal generation
+    # +4 extra steps: FDA enrichment, pipeline builder, regime, signals
+    total = len(steps) + 4
 
     for i, (label, module_path, func_name, kwargs) in enumerate(steps):
         pct = i / total
@@ -80,20 +96,44 @@ def _run_collection(steps, progress_bar, status_text):
         try:
             mod = importlib.import_module(module_path)
             func = getattr(mod, func_name)
-            result = func(**kwargs)
+            log_conn = sqlite3.connect(DB_PATH)
+            try:
+                result = log_collection_step(log_conn, label, func, **kwargs)
+            finally:
+                log_conn.close()
             status_text.write(f"  :white_check_mark: {label}: **{result}**")
             results[label] = result
         except Exception as e:
             status_text.write(f"  :x: {label}: {e}")
             results[label] = None
 
+    step_idx = len(steps)
+
+    # FDA Enrichment
+    step_idx += 1
+    progress_bar.progress((step_idx - 1) / total, text=f"({step_idx}/{total}) FDA Enrichment...")
+    status_text.write("**FDA Enrichment...**")
+    try:
+        log_conn = sqlite3.connect(DB_PATH)
+        try:
+            enrichment_result = log_collection_step(log_conn, "FDA Enrichment", _run_fda_enrichment)
+        finally:
+            log_conn.close()
+        status_text.write(f"  :white_check_mark: FDA Enrichment: **{enrichment_result} records**")
+    except Exception as e:
+        status_text.write(f"  :x: FDA Enrichment: {e}")
+
     # Macro regime classification
-    step_num = len(steps) + 1
-    progress_bar.progress((step_num - 1) / total, text=f"({step_num}/{total}) Classifying regime...")
+    step_idx += 1
+    progress_bar.progress((step_idx - 1) / total, text=f"({step_idx}/{total}) Classifying regime...")
     status_text.write("**Classifying macro regime...**")
     try:
         from analysis.macro_regime import classify_current_regime
-        regime = classify_current_regime()
+        log_conn = sqlite3.connect(DB_PATH)
+        try:
+            regime = log_collection_step(log_conn, "macro_regime", classify_current_regime)
+        finally:
+            log_conn.close()
         if regime:
             status_text.write(
                 f"  :white_check_mark: Regime: **Q{regime['quadrant']} {regime['label']}** "
@@ -104,13 +144,36 @@ def _run_collection(steps, progress_bar, status_text):
     except Exception as e:
         status_text.write(f"  :x: Regime: {e}")
 
+    # Pipeline builder
+    step_idx += 1
+    progress_bar.progress((step_idx - 1) / total, text=f"({step_idx}/{total}) Building pipeline...")
+    status_text.write("**Building regulatory pipeline...**")
+    try:
+        from analysis.pipeline_builder import build_pipeline, refresh_statuses
+        log_conn = sqlite3.connect(DB_PATH)
+        try:
+            pipeline_result = log_collection_step(log_conn, "pipeline_builder", build_pipeline)
+        finally:
+            log_conn.close()
+        changed = refresh_statuses()
+        status_text.write(
+            f"  :white_check_mark: Pipeline: **{pipeline_result['matched']} matched, "
+            f"{pipeline_result['pending']} pending, {changed} refreshed**"
+        )
+    except Exception as e:
+        status_text.write(f"  :x: Pipeline: {e}")
+
     # Signal generation
-    step_num = len(steps) + 2
-    progress_bar.progress((step_num - 1) / total, text=f"({step_num}/{total}) Generating signals...")
+    step_idx += 1
+    progress_bar.progress((step_idx - 1) / total, text=f"({step_idx}/{total}) Generating signals...")
     status_text.write("**Generating trading signals...**")
     try:
         from analysis.signal_generator import generate_signals
-        new_signals = generate_signals()
+        log_conn = sqlite3.connect(DB_PATH)
+        try:
+            new_signals = log_collection_step(log_conn, "signal_generator", generate_signals)
+        finally:
+            log_conn.close()
         status_text.write(f"  :white_check_mark: Signals: **{len(new_signals)} new**")
     except Exception as e:
         status_text.write(f"  :x: Signals: {e}")
@@ -167,6 +230,7 @@ with col_backfill:
             ("FRED Macro", "collectors.fred_macro", "backfill",
              {"since_date": bf_start.isoformat()}),
             ("FOMC Events", "collectors.fomc", "collect", {}),
+            ("USASpending", "collectors.usaspending", "collect", {}),
         ]
 
         results = _run_collection(backfill_steps, progress_bar, st)
@@ -288,6 +352,7 @@ sources = [
     {"Source": "FRED", "API": "api.stlouisfed.org", "Key Required": "Yes", "Table": "macro_indicators", "Frequency": "Varies"},
     {"Source": "FOMC", "API": "federalreserve.gov", "Key Required": "No", "Table": "fomc_events", "Frequency": "~8x/year"},
     {"Source": "Yahoo Finance", "API": "yfinance library", "Key Required": "No", "Table": "market_data", "Frequency": "Daily"},
+    {"Source": "USASpending", "API": "api.usaspending.gov/v2", "Key Required": "No", "Table": "contract_awards", "Frequency": "Weekly"},
     {"Source": "Polymarket", "API": "gamma-api.polymarket.com", "Key Required": "No", "Table": "prediction_markets", "Frequency": "Daily"},
 ]
 
