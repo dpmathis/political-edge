@@ -96,6 +96,26 @@ GLOSSARY = {
         "Stock return minus what the market did. Positive = the stock beat the "
         "market. Negative = it underperformed."
     ),
+    "Pipeline Pressure": (
+        "Count of proposed rules past their comment deadline without a matching "
+        "final rule. High pressure = more regulatory uncertainty for that sector."
+    ),
+    "Proposed Rule": (
+        "A regulation an agency wants to implement. There's a public comment "
+        "period before it becomes final. Markets tend to underreact to these."
+    ),
+    "Comment Deadline": (
+        "The date when public comment on a proposed rule closes. After this, "
+        "the agency moves toward a final decision."
+    ),
+    "Estimated Final Date": (
+        "When we predict the final rule will be published, based on how long "
+        "this agency typically takes from proposed to final."
+    ),
+    "Pipeline Scenario": (
+        "A what-if analysis: if selected proposed rules finalize (or are withdrawn), "
+        "what's the expected market impact based on historical data?"
+    ),
 }
 
 

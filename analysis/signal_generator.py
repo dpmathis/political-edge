@@ -655,6 +655,79 @@ def _generate_pipeline_pressure_signals(conn: sqlite3.Connection, macro_modifier
     return signals
 
 
+def _generate_pipeline_deadline_signals(conn: sqlite3.Connection, macro_modifier: float, macro_quadrant: int | None) -> list[dict]:
+    """Generate signals when proposed rules approach their comment deadline.
+
+    Report 3 found proposed rules generate -0.25% CAR (p=0.016).
+    This triggers on rules approaching their comment deadline (within 7 days)
+    with impact_score >= 3.
+    """
+    signals = []
+
+    try:
+        rows = conn.execute(
+            """SELECT pr.id, pr.proposed_event_id, pr.agency, pr.sector, pr.tickers,
+                      pr.proposed_title, pr.impact_score, pr.comment_deadline,
+                      pr.historical_car
+               FROM pipeline_rules pr
+               WHERE pr.status IN ('proposed', 'in_comment')
+                 AND pr.comment_deadline IS NOT NULL
+                 AND pr.comment_deadline >= date('now')
+                 AND pr.comment_deadline <= date('now', '+7 days')
+                 AND pr.impact_score >= 3"""
+        ).fetchall()
+    except Exception as e:
+        logger.warning("Pipeline deadline query failed: %s", e)
+        return signals
+
+    if not rows:
+        return signals
+
+    from analysis.research.base import SECTOR_ETF_ONLY
+
+    for row in rows:
+        pr_id, event_id, agency, sector, tickers_str, title, impact, deadline, hist_car = row
+
+        # Determine tickers
+        tickers = []
+        if tickers_str and isinstance(tickers_str, str):
+            tickers = [t.strip() for t in tickers_str.split(",") if t.strip()]
+        if not tickers and sector in SECTOR_ETF_ONLY:
+            tickers = [SECTOR_ETF_ONLY[sector]]
+        if not tickers:
+            tickers = ["SPY"]
+
+        # Conviction: medium if we have significant historical evidence
+        conviction = "medium" if hist_car is not None else "low"
+
+        car_display = f"{hist_car:+.2%}" if hist_car else "-0.25%"
+        rationale = (
+            f"Pipeline deadline approaching: {title[:60]}. "
+            f"Comment deadline {deadline}. "
+            f"Historical CAR for similar rules: {car_display}. "
+            f"Impact score: {impact}/5."
+        )
+
+        for ticker in tickers[:3]:
+            if _has_recent_signal(conn, ticker, "pipeline_deadline", days=14):
+                continue
+
+            signals.append({
+                "ticker": ticker,
+                "signal_type": "pipeline_deadline",
+                "direction": "short",  # Negative CAR per Report 3
+                "conviction": conviction,
+                "source_event_id": event_id,
+                "source_table": "pipeline_rules",
+                "rationale": rationale,
+                "macro_regime_at_signal": macro_quadrant,
+                "position_size_modifier": macro_modifier,
+                "time_horizon_days": 10,
+            })
+
+    return signals
+
+
 def _apply_prediction_market_modifier(sig: dict, conn: sqlite3.Connection) -> None:
     """Adjust conviction based on prediction market probabilities.
 
@@ -797,6 +870,7 @@ def generate_signals() -> list[dict]:
         ("reg_shock", _generate_reg_shock_signals),
         ("fomc_drift", _generate_fomc_signals),
         ("pipeline_pressure", _generate_pipeline_pressure_signals),
+        ("pipeline_deadline", _generate_pipeline_deadline_signals),
     ]
 
     for name, gen_func in generators:

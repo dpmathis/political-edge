@@ -132,6 +132,31 @@ CREATE TABLE IF NOT EXISTS company_contractor_map (
     UNIQUE(ticker, contractor_name)
 );
 
+CREATE TABLE IF NOT EXISTS pipeline_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposed_event_id INTEGER NOT NULL,
+    final_event_id INTEGER,
+    agency TEXT,
+    sector TEXT,
+    tickers TEXT,
+    proposed_date DATE,
+    comment_deadline DATE,
+    estimated_final_date DATE,
+    actual_final_date DATE,
+    status TEXT DEFAULT 'proposed',
+    days_in_pipeline INTEGER,
+    title_similarity REAL,
+    impact_score INTEGER DEFAULT 0,
+    proposed_title TEXT,
+    historical_car REAL,
+    historical_n INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (proposed_event_id) REFERENCES regulatory_events(id),
+    FOREIGN KEY (final_event_id) REFERENCES regulatory_events(id),
+    UNIQUE(proposed_event_id)
+);
+
 -- ============================================
 -- INDEXES
 -- ============================================
@@ -146,6 +171,11 @@ CREATE INDEX IF NOT EXISTS idx_lobbying_client ON lobbying_filings(client_ticker
 CREATE INDEX IF NOT EXISTS idx_trades_ticker ON congress_trades(ticker);
 CREATE INDEX IF NOT EXISTS idx_trades_date ON congress_trades(trade_date DESC);
 CREATE INDEX IF NOT EXISTS idx_market_ticker ON market_data(ticker, date);
+CREATE INDEX IF NOT EXISTS idx_pipeline_status ON pipeline_rules(status);
+CREATE INDEX IF NOT EXISTS idx_pipeline_sector ON pipeline_rules(sector);
+CREATE INDEX IF NOT EXISTS idx_pipeline_proposed ON pipeline_rules(proposed_event_id);
+CREATE INDEX IF NOT EXISTS idx_pipeline_deadline ON pipeline_rules(comment_deadline);
+CREATE INDEX IF NOT EXISTS idx_pipeline_proposed_date ON pipeline_rules(proposed_date);
 """
 
 

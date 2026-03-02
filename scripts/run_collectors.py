@@ -134,7 +134,18 @@ def main():
     except Exception as e:
         logger.error("Macro regime classification failed: %s", e, exc_info=True)
 
-    # 13. Signal generation (after all data is collected)
+    # 13. Pipeline rules refresh (after regulatory events + sector tagging)
+    try:
+        logger.info("--- Pipeline Rules ---")
+        from analysis.pipeline_builder import build_pipeline, refresh_statuses
+        result = build_pipeline()
+        logger.info("Pipeline: %d matched, %d pending", result["matched"], result["pending"])
+        changed = refresh_statuses()
+        logger.info("Pipeline: %d statuses refreshed", changed)
+    except Exception as e:
+        logger.error("Pipeline builder failed: %s", e, exc_info=True)
+
+    # 14. Signal generation (after all data is collected)
     try:
         logger.info("--- Signal Generator ---")
         from analysis.signal_generator import generate_signals, review_active_signals
@@ -145,7 +156,7 @@ def main():
     except Exception as e:
         logger.error("Signal generator failed: %s", e, exc_info=True)
 
-    # 14. Alert engine (after all collectors and signals)
+    # 15. Alert engine (after all collectors and signals)
     try:
         logger.info("--- Alert Engine ---")
         from analysis.alert_engine import evaluate_and_send

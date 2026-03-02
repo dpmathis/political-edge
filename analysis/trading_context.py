@@ -20,6 +20,8 @@ SIGNAL_STUDY_MAP = {
     "macro_regime": None,
     "reg_shock_expanded": "report1_reg_shocks_aggregate",
     "pipeline_pressure": "report3_pipeline_proposed_rule",
+    "pipeline_scenario": "report3_pipeline_proposed",
+    "pipeline_deadline": "report3_pipeline_proposed",
     "tariff_asymmetry": "report4_tariff_aggregate",
 }
 
@@ -34,6 +36,8 @@ TIME_HORIZONS = {
     "fomc_drift": 5,
     "reg_shock_expanded": 5,
     "pipeline_pressure": 20,
+    "pipeline_scenario": 20,
+    "pipeline_deadline": 10,
     "tariff_asymmetry": 5,
 }
 
