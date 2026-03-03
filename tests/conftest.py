@@ -83,9 +83,14 @@ CREATE TABLE IF NOT EXISTS fomc_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_date DATE NOT NULL,
     event_type TEXT,
+    title TEXT,
     rate_decision TEXT,
     hawkish_dovish_score REAL,
     statement_url TEXT,
+    statement_text TEXT,
+    previous_statement_diff TEXT,
+    spx_return_day REAL,
+    spx_return_2day REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
