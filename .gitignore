@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.coverage
 
 # Data (local DB and logs — seed.db.gz is tracked for cloud deploy)
 data/political_edge.db

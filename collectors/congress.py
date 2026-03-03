@@ -5,7 +5,7 @@ from the Congress.gov v3 API. Requires free API key from api.data.gov.
 
 Usage:
     from collectors import congress
-    congress.collect()                    # Last 14 days
+    congress.collect()                    # Last 7 days
     congress.backfill("2025-01-03", "2025-12-31")
 """
 
@@ -35,6 +35,27 @@ MARKET_RELEVANT_ACTIONS = {
     "reportedToSenate": {"event_type": "bill_passed_committee", "impact_base": 3},
     "hearingHeldBy": {"event_type": "hearing_scheduled", "impact_base": 2},
 }
+
+# Keywords in latestAction.text that suggest market-relevant actions.
+# Used to pre-filter the bill listing before fetching detailed actions.
+_RELEVANT_TEXT_PATTERNS = [
+    "became public law",
+    "signed by president",
+    "passed house",
+    "passed senate",
+    "agreed to in house",
+    "agreed to in senate",
+    "reported by",
+    "reported to house",
+    "reported to senate",
+    "hearing held",
+]
+
+
+def _latest_action_looks_relevant(text: str) -> bool:
+    """Quick check if latestAction text suggests a market-relevant action."""
+    lower = text.lower()
+    return any(pat in lower for pat in _RELEVANT_TEXT_PATTERNS)
 
 
 def _fetch_json(url: str, api_key: str, params: dict | None = None) -> dict | None:
@@ -117,8 +138,12 @@ def _insert_events(conn: sqlite3.Connection, events: list[dict]) -> int:
 def collect(start_date: str | None = None, end_date: str | None = None, max_pages: int = 10) -> int:
     """Fetch recent market-relevant bill actions from Congress.gov.
 
+    Uses a two-pass approach: first scans bill listings (fast, 1 request per
+    250 bills) and pre-filters using latestAction text, then only fetches
+    detailed /actions for bills whose latest action looks market-relevant.
+
     Args:
-        start_date: YYYY-MM-DD (default: 14 days ago)
+        start_date: YYYY-MM-DD (default: 7 days ago)
         end_date: YYYY-MM-DD (default: today)
         max_pages: Max pages of bills to fetch
 
@@ -131,7 +156,7 @@ def collect(start_date: str | None = None, end_date: str | None = None, max_page
         return 0
 
     if not start_date:
-        start_date = (date.today() - timedelta(days=14)).isoformat()
+        start_date = (date.today() - timedelta(days=7)).isoformat()
     if not end_date:
         end_date = date.today().isoformat()
 
@@ -139,6 +164,8 @@ def collect(start_date: str | None = None, end_date: str | None = None, max_page
 
     conn = sqlite3.connect(DB_PATH)
     total_inserted = 0
+    total_scanned = 0
+    total_fetched_detail = 0
     offset = 0
     limit = 250
 
@@ -161,6 +188,7 @@ def collect(start_date: str | None = None, end_date: str | None = None, max_page
         if not bills:
             break
 
+        total_scanned += len(bills)
         logger.info("  Page %d: %d bills", page + 1, len(bills))
 
         for bill in bills:
@@ -168,12 +196,18 @@ def collect(start_date: str | None = None, end_date: str | None = None, max_page
             bill_type = bill.get("type", "").lower()
             bill_number = bill.get("number", "")
             bill_title = bill.get("title", "")
-            _ = bill.get("url", "")  # available for future use
 
             if not congress_num or not bill_number:
                 continue
 
-            # Fetch actions for this bill
+            # Pre-filter: only fetch detailed actions if latestAction looks relevant
+            latest_action = bill.get("latestAction", {})
+            latest_text = latest_action.get("text", "")
+            if not _latest_action_looks_relevant(latest_text):
+                continue
+
+            # Fetch actions for this bill (only for pre-filtered bills)
+            total_fetched_detail += 1
             time.sleep(RATE_LIMIT_DELAY)
             actions_data = _fetch_json(
                 f"{BASE_URL}/bill/{congress_num}/{bill_type}/{bill_number}/actions",
@@ -234,7 +268,10 @@ def collect(start_date: str | None = None, end_date: str | None = None, max_page
         scored = impact_scorer.score_all_unscored()
         logger.info("Tagged %d, scored %d new events", tagged, scored)
 
-    logger.info("Congress.gov collector done: %d new events", total_inserted)
+    logger.info(
+        "Congress.gov collector done: %d scanned, %d fetched detail, %d new events",
+        total_scanned, total_fetched_detail, total_inserted,
+    )
     return total_inserted
 
 

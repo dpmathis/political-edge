@@ -11,6 +11,7 @@ from collectors.congress import (
     _fetch_json,
     _insert_events,
     _is_market_relevant,
+    _latest_action_looks_relevant,
 )
 
 
@@ -54,6 +55,37 @@ class TestIsMarketRelevant:
         assert meta is not None
         assert meta["event_type"] == "bill_signed"
         assert meta["impact_base"] == 5
+
+
+# -- _latest_action_looks_relevant -------------------------------------------
+
+
+class TestLatestActionLooksRelevant:
+    """Tests for the _latest_action_looks_relevant pre-filter."""
+
+    def test_became_law_matches(self):
+        assert _latest_action_looks_relevant("Became Public Law No: 118-999.") is True
+
+    def test_passed_house_matches(self):
+        assert _latest_action_looks_relevant("Passed House by voice vote.") is True
+
+    def test_passed_senate_matches(self):
+        assert _latest_action_looks_relevant("Passed Senate with amendments.") is True
+
+    def test_reported_by_matches(self):
+        assert _latest_action_looks_relevant("Reported by the Committee on Finance.") is True
+
+    def test_hearing_held_matches(self):
+        assert _latest_action_looks_relevant("Hearing held before Subcommittee.") is True
+
+    def test_introduced_does_not_match(self):
+        assert _latest_action_looks_relevant("Introduced in House") is False
+
+    def test_referred_does_not_match(self):
+        assert _latest_action_looks_relevant("Referred to the Committee on Ways and Means.") is False
+
+    def test_empty_string(self):
+        assert _latest_action_looks_relevant("") is False
 
 
 # -- _build_source_id --------------------------------------------------------
@@ -200,6 +232,10 @@ class TestCollect:
                     "number": "9999",
                     "title": "Test Infrastructure Act",
                     "url": "https://api.congress.gov/v3/bill/118/hr/9999",
+                    "latestAction": {
+                        "actionDate": "2025-11-10",
+                        "text": "Became Public Law No: 118-999.",
+                    },
                 }
             ]
         }
