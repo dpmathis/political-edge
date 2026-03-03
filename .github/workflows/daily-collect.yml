@@ -57,8 +57,18 @@ jobs:
           print(f'Data validation passed ({len(tables)} tables)')
           "
 
-      - name: Recompress seed
-        run: gzip -c data/political_edge.db > data/seed.db.gz
+      - name: Trim and recompress seed
+        run: |
+          python -c "
+          import sqlite3
+          conn = sqlite3.connect('data/political_edge.db')
+          conn.execute('UPDATE regulatory_events SET raw_json = NULL')
+          conn.commit()
+          conn.execute('VACUUM')
+          conn.close()
+          print('Stripped raw_json and vacuumed DB for seed')
+          "
+          gzip -c data/political_edge.db > data/seed.db.gz
 
       - name: Commit updated seed
         run: |
