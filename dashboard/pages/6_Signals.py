@@ -165,18 +165,24 @@ ctrl_col1, ctrl_col2, ctrl_col3 = st.columns(3)
 with ctrl_col1:
     if st.button("Generate Signals", type="primary"):
         with st.spinner("Generating signals..."):
-            from analysis.signal_generator import generate_signals
-            new_signals = generate_signals()
-            st.success(f"Generated {len(new_signals)} new signals")
-            st.cache_data.clear()
+            try:
+                from analysis.signal_generator import generate_signals
+                new_signals = generate_signals()
+                st.success(f"Generated {len(new_signals)} new signals")
+                st.cache_data.clear()
+            except Exception as e:
+                st.error(f"Signal generation failed: {e}")
 
 with ctrl_col2:
     if st.button("Review Active Signals"):
         with st.spinner("Reviewing active signals..."):
-            from analysis.signal_generator import review_active_signals
-            closed = review_active_signals()
-            st.success(f"Closed {closed} signals (exit conditions met)")
-            st.cache_data.clear()
+            try:
+                from analysis.signal_generator import review_active_signals
+                closed = review_active_signals()
+                st.success(f"Closed {closed} signals (exit conditions met)")
+                st.cache_data.clear()
+            except Exception as e:
+                st.error(f"Signal review failed: {e}")
 
 with ctrl_col3:
     status_filter = st.selectbox(

@@ -102,6 +102,18 @@ def _ensure_db():
 
 _ensure_db()
 
+# Show DB health in sidebar for debugging
+try:
+    _dbconn = sqlite3.connect(DB_PATH)
+    _tables = [r[0] for r in _dbconn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()]
+    _dbconn.close()
+    if len(_tables) < 10:
+        st.sidebar.warning(f"DB has only {len(_tables)} tables — data may be incomplete.")
+except Exception as _e:
+    st.sidebar.error(f"DB error: {_e}")
+
 st.title("Political Edge")
 st.subheader("Political & Regulatory Trading Intelligence")
 
