@@ -204,16 +204,25 @@ def _render_card_html(signal: dict, show_evidence: bool, conn: sqlite3.Connectio
     p_val = signal.get("historical_p_value")
     n_events = signal.get("historical_n_events")
 
+    def _valid(v):
+        """Check if a value is non-None and not NaN."""
+        if v is None:
+            return False
+        try:
+            return v == v  # NaN != NaN
+        except (TypeError, ValueError):
+            return True
+
     hist_html = ""
-    if win_rate is not None or car is not None:
+    if _valid(win_rate) or _valid(car):
         parts = []
-        if car is not None:
+        if _valid(car):
             parts.append(f"{float(car):+.1%} avg return")
-        if win_rate is not None:
+        if _valid(win_rate):
             parts.append(f"{float(win_rate):.0%} win rate")
-        if n_events is not None:
+        if _valid(n_events):
             parts.append(f"N={int(n_events)}")
-        if p_val is not None:
+        if _valid(p_val):
             sig = "p<0.01" if p_val < 0.01 else "p<0.05" if p_val < 0.05 else "p<0.10" if p_val < 0.10 else f"p={p_val:.2f}"
             parts.append(sig)
         hist_html = (
