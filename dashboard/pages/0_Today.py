@@ -127,6 +127,10 @@ if regime_row:
 else:
     st.info("No macro regime data. Run FRED collector and classify regime from Settings.")
 
+from pathlib import Path
+
+_PAGES = Path(__file__).parent
+
 # ── Section C: Active Signal Cards ────────────────────────────────────
 st.markdown("---")
 st.subheader("Active Signals")
@@ -151,6 +155,13 @@ except Exception:
 if not signals.empty:
     for _, sig in signals.iterrows():
         render_signal_card(sig.to_dict(), show_evidence=True, conn=conn)
+        ticker = sig.get("ticker", "")
+        if ticker:
+            st.page_link(
+                str(_PAGES / "4_Watchlist.py"),
+                label=f"Deep dive: {ticker}",
+                icon=":material/search:",
+            )
 
     # Show remaining signals count
     try:
@@ -161,6 +172,7 @@ if not signals.empty:
             st.caption(f"Showing top 5 of {total_active} active signals. See the Signals page for all.")
     except Exception:
         pass
+    st.page_link(str(_PAGES / "6_Signals.py"), label="View all signals", icon=":material/trending_up:")
 else:
     st.info("No active signals. Run signal generation from the Settings page.")
 

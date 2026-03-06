@@ -118,6 +118,15 @@ else:
     confidence = current.get("confidence", "unknown")
     modifier = current.get("position_size_modifier", 1.0)
 
+    # Humanized position modifier
+    _modifier_text = {
+        1.2: "Conditions suggest slightly larger positions",
+        1.0: "Normal position sizing",
+        0.6: "Conditions suggest smaller positions",
+        0.4: "Conditions suggest minimal exposure",
+    }
+    modifier_desc = _modifier_text.get(modifier, f"{modifier:.1f}x position sizing")
+
     st.markdown(
         f"""
         <div style="background:{color}22; border:2px solid {color}; border-radius:12px; padding:24px; margin-bottom:20px;">
@@ -134,7 +143,7 @@ else:
                             Confidence: <b>{confidence}</b>
                         </span>
                         <span style="background:{color}44; padding:4px 10px; border-radius:6px;">
-                            Position Modifier: <b>{modifier:.1f}x</b>
+                            {modifier_desc}
                         </span>
                     </div>
                 </div>
@@ -172,6 +181,130 @@ else:
             f"these sectors historically outperform during {QUADRANT_LABELS.get(q, 'this regime')}. "
             f"**Reduce exposure to:** {', '.join(avoid_names) or 'N/A'}."
         )
+
+    # ── 2x2 Quadrant Diagram ──────────────────────────────────────────
+    if "growth_roc" in regimes.columns and "inflation_roc" in regimes.columns:
+        regime_sorted = regimes.sort_values("date").copy()
+        regime_sorted = regime_sorted.dropna(subset=["growth_roc", "inflation_roc"])
+
+        if len(regime_sorted) >= 1:
+            st.markdown("---")
+            st.subheader("Regime Quadrant Map")
+            st.caption("Current position and historical trajectory through the growth/inflation cycle")
+
+            latest_pt = regime_sorted.iloc[-1]
+            trail = regime_sorted.tail(12)
+
+            # Determine axis ranges
+            all_growth = regime_sorted["growth_roc"].tolist()
+            all_inflation = regime_sorted["inflation_roc"].tolist()
+            g_range = max(abs(min(all_growth)), abs(max(all_growth)), 0.02) * 1.3
+            i_range = max(abs(min(all_inflation)), abs(max(all_inflation)), 0.02) * 1.3
+
+            fig = go.Figure()
+
+            # Background quadrant rectangles
+            quad_zones = [
+                # Q1: Goldilocks — growth > 0, inflation < 0
+                dict(x0=0, x1=g_range, y0=-i_range, y1=0,
+                     fillcolor="rgba(46,204,113,0.10)", label="Goldilocks"),
+                # Q2: Reflation — growth > 0, inflation > 0
+                dict(x0=0, x1=g_range, y0=0, y1=i_range,
+                     fillcolor="rgba(241,196,15,0.10)", label="Reflation"),
+                # Q3: Stagflation — growth < 0, inflation > 0
+                dict(x0=-g_range, x1=0, y0=0, y1=i_range,
+                     fillcolor="rgba(230,126,34,0.10)", label="Stagflation"),
+                # Q4: Deflation — growth < 0, inflation < 0
+                dict(x0=-g_range, x1=0, y0=-i_range, y1=0,
+                     fillcolor="rgba(231,76,60,0.10)", label="Deflation"),
+            ]
+
+            for zone in quad_zones:
+                fig.add_shape(
+                    type="rect",
+                    x0=zone["x0"], x1=zone["x1"],
+                    y0=zone["y0"], y1=zone["y1"],
+                    fillcolor=zone["fillcolor"],
+                    line_width=0,
+                    layer="below",
+                )
+                # Quadrant label
+                fig.add_annotation(
+                    x=(zone["x0"] + zone["x1"]) / 2,
+                    y=(zone["y0"] + zone["y1"]) / 2,
+                    text=zone["label"],
+                    showarrow=False,
+                    font=dict(size=14, color="rgba(100,100,100,0.4)"),
+                )
+
+            # Historical trail (fading opacity)
+            if len(trail) >= 2:
+                fig.add_trace(go.Scatter(
+                    x=trail["growth_roc"],
+                    y=trail["inflation_roc"],
+                    mode="lines+markers",
+                    line=dict(color="rgba(100,100,100,0.3)", width=1, dash="dot"),
+                    marker=dict(size=5, color="rgba(100,100,100,0.3)"),
+                    hovertemplate="Date: %{text}<br>Growth: %{x:.3f}<br>Inflation: %{y:.3f}<extra></extra>",
+                    text=trail["date"],
+                    name="History",
+                    showlegend=False,
+                ))
+
+            # Current position (large marker)
+            fig.add_trace(go.Scatter(
+                x=[latest_pt["growth_roc"]],
+                y=[latest_pt["inflation_roc"]],
+                mode="markers+text",
+                marker=dict(size=16, color=color, line=dict(width=2, color="white")),
+                text=["Now"],
+                textposition="top center",
+                textfont=dict(size=12, color=color),
+                hovertemplate=f"Current<br>Growth RoC: {latest_pt['growth_roc']:.4f}<br>Inflation RoC: {latest_pt['inflation_roc']:.4f}<extra></extra>",
+                name="Current",
+                showlegend=False,
+            ))
+
+            # Axis lines
+            fig.add_hline(y=0, line_dash="solid", line_color="rgba(0,0,0,0.15)")
+            fig.add_vline(x=0, line_dash="solid", line_color="rgba(0,0,0,0.15)")
+
+            fig.update_layout(
+                height=400,
+                xaxis=dict(title="Growth RoC", zeroline=False, range=[-g_range, g_range]),
+                yaxis=dict(title="Inflation RoC", zeroline=False, range=[-i_range, i_range]),
+                margin=dict(l=40, r=20, t=20, b=40),
+                plot_bgcolor="white",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+    # ── Traffic-Light Risk Summary ────────────────────────────────────
+    try:
+        vix_df = load_macro_indicators("VIXCLS", limit=1)
+        spread_df = load_macro_indicators("T10Y2Y", limit=1)
+        vix_val = float(vix_df.iloc[-1]["value"]) if not vix_df.empty and pd.notna(vix_df.iloc[-1]["value"]) else None
+        spread_val = float(spread_df.iloc[-1]["value"]) if not spread_df.empty and pd.notna(spread_df.iloc[-1]["value"]) else None
+
+        if vix_val is not None or spread_val is not None:
+            if (vix_val is not None and vix_val > 30) or (spread_val is not None and spread_val < -0.5):
+                risk_dot, risk_color, risk_msg = "🔴", "#dc2626", "High risk — defensive positioning recommended"
+            elif (vix_val is not None and vix_val > 20) or (spread_val is not None and abs(spread_val) < 0.2):
+                risk_dot, risk_color, risk_msg = "🟡", "#ca8a04", "Elevated caution — mixed signals"
+            else:
+                risk_dot, risk_color, risk_msg = "🟢", "#16a34a", "Low risk — conditions favor equities"
+
+            st.markdown(
+                f'<div style="background:{risk_color}11; border:1px solid {risk_color}33; '
+                f'border-radius:8px; padding:12px 16px; margin:8px 0;">'
+                f'<span style="font-size:16px;">{risk_dot}</span> '
+                f'<span style="font-size:14px; font-weight:600; color:{risk_color};">{risk_msg}</span>'
+                f'<span style="font-size:12px; color:#94a3b8; margin-left:12px;">'
+                f'VIX: {vix_val:.0f}' + (f" | 10Y-2Y: {spread_val:+.2f}%" if spread_val is not None else "") +
+                '</span></div>',
+                unsafe_allow_html=True,
+            )
+    except Exception:
+        pass
 
 # ── Row 2: Key Indicators ─────────────────────────────────────────────
 st.markdown("---")

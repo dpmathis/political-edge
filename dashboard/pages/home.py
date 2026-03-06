@@ -99,9 +99,20 @@ try:
 except Exception:
     signals = pd.DataFrame()
 
+from pathlib import Path
+
+_PAGES = Path(__file__).parent
+
 if not signals.empty:
     for _, sig in signals.iterrows():
         render_signal_card(sig.to_dict(), show_evidence=False, conn=conn)
+        ticker = sig.get("ticker", "")
+        if ticker:
+            st.page_link(
+                str(_PAGES / "4_Watchlist.py"),
+                label=f"Deep dive: {ticker}",
+                icon=":material/search:",
+            )
 
     try:
         total_active = conn.execute(
@@ -119,10 +130,6 @@ else:
 
 # ── Quick Links ───────────────────────────────────────────────────────
 st.markdown("---")
-
-from pathlib import Path
-
-_PAGES = Path(__file__).parent
 
 link_cols = st.columns(3)
 with link_cols[0]:

@@ -232,6 +232,19 @@ else:
             st.markdown(f"**Sectors:** {event['sectors'] or 'None detected'}")
             st.markdown(f"**Tickers:** {event['tickers'] or 'None detected'}")
 
+            # Cross-links to Watchlist deep dives
+            if event["tickers"]:
+                from pathlib import Path
+                _PAGES_DIR = Path(__file__).parent
+                for _t in str(event["tickers"]).split(","):
+                    _t = _t.strip()
+                    if _t:
+                        st.page_link(
+                            str(_PAGES_DIR / "4_Watchlist.py"),
+                            label=f"Deep dive: {_t}",
+                            icon=":material/search:",
+                        )
+
             # "So what?" interpretation for high-impact events
             if (event["impact_score"] or 0) >= 3:
                 conn_ctx = sqlite3.connect(DB_PATH)

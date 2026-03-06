@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import sqlite3
+from datetime import date
 
 import pandas as pd
 import plotly.express as px
@@ -145,19 +146,68 @@ with filter_col1:
 # ── Row 2: Signals Table ─────────────────────────────────────────────
 signals_df = load_signals(status_filter)
 
-# Show signal cards for pending/active signals
+# ── Top Signals Today (ranked by composite score) ────────────────────
+_PAGES = os.path.dirname(os.path.abspath(__file__))
+
+
+def _rank_score(row) -> float:
+    """Composite score: conviction (40%) + recency (30%) + CAR magnitude (30%)."""
+    conv = (row.get("conviction") or "low").lower()
+    conv_weight = {"high": 1.0, "medium": 0.6, "low": 0.3}.get(conv, 0.3)
+
+    sig_date = row.get("signal_date") or ""
+    try:
+        days_old = (date.today() - date.fromisoformat(str(sig_date)[:10])).days
+    except (ValueError, TypeError):
+        days_old = 999
+    recency = max(0.0, 1.0 - days_old * 0.1)
+
+    car = row.get("expected_car")
+    car_weight = min(abs(float(car)), 0.20) / 0.20 if car and pd.notna(car) else 0.0
+
+    return conv_weight * 0.4 + recency * 0.3 + car_weight * 0.3
+
+
 pending_active = signals_df[signals_df["status"].isin(["pending", "active"])] if not signals_df.empty else pd.DataFrame()
+
 if not pending_active.empty:
-    st.subheader("Active Signal Cards")
+    ranked = pending_active.copy()
+    ranked["_rank_score"] = ranked.apply(lambda r: _rank_score(r), axis=1)
+    ranked = ranked.sort_values("_rank_score", ascending=False).head(10)
+
+    st.subheader("Top Signals Today")
+    st.caption("Ranked by conviction, recency, and expected return magnitude")
     conn_cards = sqlite3.connect(DB_PATH)
-    for _, sig in pending_active.head(5).iterrows():
+    for rank_num, (_, sig) in enumerate(ranked.iterrows(), 1):
+        rank_html = (
+            f'<div style="display:inline-block; background:#334155; color:white; '
+            f'border-radius:50%; width:24px; height:24px; text-align:center; '
+            f'line-height:24px; font-size:12px; font-weight:bold; margin-bottom:4px;">'
+            f'{rank_num}</div>'
+        )
+        st.markdown(rank_html, unsafe_allow_html=True)
         render_signal_card(sig.to_dict(), show_evidence=True, conn=conn_cards)
+        ticker = sig.get("ticker", "")
+        if ticker:
+            st.page_link(
+                os.path.join(_PAGES, "4_Watchlist.py"),
+                label=f"Deep dive: {ticker}",
+                icon=":material/search:",
+            )
     conn_cards.close()
-    if len(pending_active) > 5:
-        st.caption(f"Showing top 5 of {len(pending_active)} active signals.")
+
+    st.markdown("---")
+
+# Show all active signal cards (existing section)
+if not pending_active.empty:
+    with st.expander(f"All Active Signals ({len(pending_active)})", expanded=False):
+        conn_cards = sqlite3.connect(DB_PATH)
+        for _, sig in pending_active.iterrows():
+            render_signal_card(sig.to_dict(), show_evidence=False, conn=conn_cards)
+        conn_cards.close()
 
 if signals_df.empty:
-    st.info("No trading signals yet. Click 'Generate Signals' to evaluate all signal rules.")
+    st.info("No trading signals yet. Go to **Settings** to run data collection, then generate signals.")
 else:
     with st.expander(f"All Signals Table ({len(signals_df)})"):
         # Format for display

@@ -119,7 +119,7 @@ def _compute_all_confluence(tickers: tuple) -> dict:
 watchlist_df = _load_watchlist()
 
 if watchlist_df.empty:
-    st.warning("No tickers in watchlist. Run setup to populate.")
+    st.warning("No tickers in watchlist. Add tickers in `config.yaml` under the `watchlist` section, then run data collection from **Settings**.")
     conn.close()
     st.stop()
 
@@ -157,11 +157,14 @@ for i, ticker in enumerate(sorted_tickers):
 # ── Section B: Ticker Selector ────────────────────────────────────────
 st.markdown("---")
 
-# Pre-select highest confluence ticker
+# Pre-select: query param > highest confluence > first ticker
+ticker_list = active_df["ticker"].tolist()
 default_idx = 0
-if sorted_tickers:
+query_ticker = st.query_params.get("ticker")
+if query_ticker and query_ticker in ticker_list:
+    default_idx = ticker_list.index(query_ticker)
+elif sorted_tickers:
     default_ticker = sorted_tickers[0]
-    ticker_list = active_df["ticker"].tolist()
     if default_ticker in ticker_list:
         default_idx = ticker_list.index(default_ticker)
 
