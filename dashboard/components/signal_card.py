@@ -18,6 +18,18 @@ from dashboard.components.color_system import (
 )
 
 
+_NO_DATA_PHRASES = (
+    "No regime data", "No data", "No lobbying data", "No trade data",
+    "No market data", "No FDA data", "Insufficient data", "Unable to check",
+    "No related contracts", "No upcoming events", "No recent purchases",
+)
+
+
+def _is_no_data(detail: str) -> bool:
+    """Check if a detail string indicates missing data (vs. a negative signal)."""
+    return any(phrase in detail for phrase in _NO_DATA_PHRASES)
+
+
 def _get_supporting_evidence(ticker: str, conn: sqlite3.Connection) -> dict:
     """Check all data sources for supporting evidence on a ticker.
 
@@ -152,14 +164,24 @@ def render_signal_card(signal: dict, show_evidence: bool = True, conn: sqlite3.C
         close_conn = True
 
     try:
-        _render_card_html(signal, show_evidence, conn)
+        _render_card(signal, show_evidence, conn)
     finally:
         if close_conn:
             conn.close()
 
 
-def _render_card_html(signal: dict, show_evidence: bool, conn: sqlite3.Connection):
-    """Internal: build and render the signal card HTML."""
+def _valid(v):
+    """Check if a value is non-None and not NaN."""
+    if v is None:
+        return False
+    try:
+        return v == v  # NaN != NaN
+    except (TypeError, ValueError):
+        return True
+
+
+def _render_card(signal: dict, show_evidence: bool, conn: sqlite3.Connection):
+    """Build and render the signal card: narrative card + expandable details."""
     ticker = signal.get("ticker", "???")
     direction = (signal.get("direction") or "watch").lower()
     conviction = (signal.get("conviction") or "low").lower()
@@ -168,114 +190,101 @@ def _render_card_html(signal: dict, show_evidence: bool, conn: sqlite3.Connectio
     signal_date = signal.get("signal_date", "")
 
     dir_color = DIRECTION_COLORS.get(direction, DIRECTION_COLORS["neutral"])
-    _ = CONVICTION_COLORS.get(conviction, CONVICTION_COLORS["low"])
 
     # Direction badge and conviction bar HTML
     dir_badge = render_direction_badge(direction)
     conv_bar = render_conviction_bar(conviction)
 
-    # Price levels
-    entry = signal.get("entry_price")
-    stop = signal.get("stop_loss_price")
-    tp = signal.get("take_profit_price")
-    horizon = signal.get("time_horizon_days")
-
-    price_html = ""
-    if entry or stop or tp:
-        parts = []
-        if entry:
-            parts.append(f"Entry: <b>${float(entry):,.2f}</b>")
-        if stop:
-            parts.append(f"Stop: <b>${float(stop):,.2f}</b>")
-        if tp:
-            parts.append(f"TP: <b>${float(tp):,.2f}</b>")
-        if horizon:
-            parts.append(f"Horizon: <b>{horizon}d</b>")
-        price_html = (
-            f'<div style="margin-top:8px; padding:6px 10px; background:#f8fafc; '
-            f'border-radius:6px; font-size:13px; color:#475569;">'
-            f'{" &nbsp;|&nbsp; ".join(parts)}'
-            f'</div>'
-        )
-
-    # Historical performance
-    win_rate = signal.get("historical_win_rate")
-    car = signal.get("expected_car")
-    p_val = signal.get("historical_p_value")
-    n_events = signal.get("historical_n_events")
-
-    def _valid(v):
-        """Check if a value is non-None and not NaN."""
-        if v is None:
-            return False
-        try:
-            return v == v  # NaN != NaN
-        except (TypeError, ValueError):
-            return True
-
-    hist_html = ""
-    if _valid(win_rate) or _valid(car):
-        parts = []
-        if _valid(car):
-            parts.append(f"{float(car):+.1%} avg return")
-        if _valid(win_rate):
-            parts.append(f"{float(win_rate):.0%} win rate")
-        if _valid(n_events):
-            parts.append(f"N={int(n_events)}")
-        if _valid(p_val):
-            sig = "p<0.01" if p_val < 0.01 else "p<0.05" if p_val < 0.05 else "p<0.10" if p_val < 0.10 else f"p={p_val:.2f}"
-            parts.append(sig)
-        hist_html = (
-            f'<div style="margin-top:6px; font-size:12px; color:#64748b;">'
-            f'Historical: {", ".join(parts)}'
-            f'</div>'
-        )
-
-    # Evidence checklist
-    evidence_html = ""
-    if show_evidence:
-        evidence = _get_supporting_evidence(ticker, conn)
-        if evidence:
-            items = []
-            for source, info in evidence.items():
-                check = "✓" if info["contributing"] else "✗"
-                check_color = "#22c55e" if info["contributing"] else "#94a3b8"
-                items.append(
-                    f'<div style="font-size:12px; color:{check_color}; margin:2px 0;">'
-                    f'{check} {source}: {info["detail"]}'
-                    f'</div>'
-                )
-            evidence_html = (
-                f'<div style="margin-top:10px; padding-top:8px; border-top:1px solid #e2e8f0;">'
-                f'<div style="font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:4px;">SUPPORTING EVIDENCE</div>'
-                f'{"".join(items)}'
-                f'</div>'
-            )
-
-    # Assemble card
+    # Main card: header + full narrative
     card_html = f"""
     <div style="border:1px solid {dir_color}33; border-left:4px solid {dir_color};
-                border-radius:8px; padding:16px; margin-bottom:12px;
+                border-radius:8px; padding:16px; margin-bottom:4px;
                 background:white;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <div style="display:flex; align-items:center; gap:10px;">
                 {dir_badge}
                 <span style="font-size:20px; font-weight:bold;">{ticker}</span>
+                <span style="font-size:12px; color:#94a3b8;">{signal_type}</span>
             </div>
             <div>{conv_bar}</div>
         </div>
-        <div style="font-size:14px; font-weight:500; color:#334155; margin-bottom:4px;">
-            {signal_type}
+        <div style="font-size:14px; color:#334155; line-height:1.6;">
+            {rationale}
         </div>
-        <div style="font-size:13px; color:#64748b; line-height:1.5;">
-            {rationale[:200]}{"..." if len(rationale) > 200 else ""}
-        </div>
-        {price_html}
-        {hist_html}
-        {evidence_html}
         <div style="font-size:11px; color:#94a3b8; margin-top:8px; text-align:right;">
             {signal_date}
         </div>
     </div>
     """
     st.markdown(card_html, unsafe_allow_html=True)
+
+    # Expandable details section
+    has_prices = signal.get("entry_price") or signal.get("stop_loss_price") or signal.get("take_profit_price")
+    has_stats = _valid(signal.get("historical_win_rate")) or _valid(signal.get("expected_car"))
+
+    if has_prices or has_stats or show_evidence:
+        with st.expander("Trade Details", expanded=False):
+            # Price levels
+            entry = signal.get("entry_price")
+            stop = signal.get("stop_loss_price")
+            tp = signal.get("take_profit_price")
+            horizon = signal.get("time_horizon_days")
+
+            if entry or stop or tp or horizon:
+                price_cols = st.columns(4)
+                with price_cols[0]:
+                    st.metric("Entry", f"${float(entry):,.2f}" if entry else "—")
+                with price_cols[1]:
+                    st.metric("Stop Loss", f"${float(stop):,.2f}" if stop else "—")
+                with price_cols[2]:
+                    st.metric("Take Profit", f"${float(tp):,.2f}" if tp else "—")
+                with price_cols[3]:
+                    st.metric("Horizon", f"{horizon} days" if horizon else "—")
+
+            # Historical stats
+            win_rate = signal.get("historical_win_rate")
+            car = signal.get("expected_car")
+            p_val = signal.get("historical_p_value")
+            n_events = signal.get("historical_n_events")
+
+            if _valid(win_rate) or _valid(car):
+                stat_cols = st.columns(4)
+                with stat_cols[0]:
+                    st.metric("Avg Return", f"{float(car):+.1%}" if _valid(car) else "—",
+                              help="Historical cumulative abnormal return for this signal type")
+                with stat_cols[1]:
+                    st.metric("Win Rate", f"{float(win_rate):.0%}" if _valid(win_rate) else "—",
+                              help="Percentage of times this signal type made money")
+                with stat_cols[2]:
+                    st.metric("Sample Size", f"N={int(n_events)}" if _valid(n_events) else "—")
+                with stat_cols[3]:
+                    if _valid(p_val):
+                        sig = "Significant" if p_val < 0.05 else "Not significant"
+                        st.metric("p-value", f"{p_val:.3f}", delta=sig,
+                                  delta_color="normal" if p_val < 0.05 else "off",
+                                  help="Statistical significance — below 0.05 means likely not random")
+                    else:
+                        st.metric("p-value", "—")
+
+            # Evidence checklist
+            if show_evidence:
+                evidence = _get_supporting_evidence(ticker, conn)
+                if evidence:
+                    st.markdown(
+                        '<div style="font-size:11px; font-weight:600; color:#94a3b8; '
+                        'margin-top:8px; margin-bottom:4px;">SUPPORTING EVIDENCE</div>',
+                        unsafe_allow_html=True,
+                    )
+                    for source, info in evidence.items():
+                        if info["contributing"]:
+                            icon, color = "✓", "#22c55e"
+                        elif _is_no_data(info["detail"]):
+                            icon, color = "—", "#cbd5e1"
+                        else:
+                            icon, color = "✗", "#e87979"
+                        st.markdown(
+                            f'<div style="font-size:12px; color:{color}; margin:2px 0;">'
+                            f'{icon} {source}: {info["detail"]}'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )

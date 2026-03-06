@@ -22,21 +22,22 @@ def render_kpi_row(study: pd.Series) -> None:
                    help=tooltip("Total event-ticker observations in this study"))
     with cols[1]:
         car_val = study["mean_car"]
-        st.metric("Mean " + tooltip("CAR"),
+        st.metric("Mean CAR",
                    f"{car_val:+.2%}" if pd.notna(car_val) else "N/A",
-                   help="Average cumulative abnormal return across all events")
+                   help=tooltip("CAR"))
     with cols[2]:
         p = study["p_value"]
         sig_label = "Significant" if pd.notna(p) and p < 0.05 else "Not Significant"
-        st.metric(tooltip("p-value"),
+        st.metric("p-value",
                    f"{p:.4f}" if pd.notna(p) else "N/A",
                    delta=sig_label,
-                   delta_color="normal" if pd.notna(p) and p < 0.05 else "off")
+                   delta_color="normal" if pd.notna(p) and p < 0.05 else "off",
+                   help=tooltip("p-value"))
     with cols[3]:
         wr = study["win_rate"]
-        st.metric(tooltip("Win Rate"),
+        st.metric("Win Rate",
                    f"{wr:.0%}" if pd.notna(wr) else "N/A",
-                   help="Fraction of events where CAR > 0")
+                   help=tooltip("Win Rate"))
 
 
 def render_car_timeline(study: pd.Series) -> None:

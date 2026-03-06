@@ -9,11 +9,12 @@ from config import DB_PATH
 
 
 def render_freshness(table: str, date_column: str, label: str | None = None, conn: sqlite3.Connection | None = None):
-    """Display a colored freshness indicator showing the most recent data date.
+    """Display a colored freshness indicator with relative time.
 
-    Green: data is from today or yesterday
-    Yellow: data is 2-3 days old
-    Red: data is >3 days old
+    Shows a colored dot emoji + relative time label:
+    - Green: updated today or yesterday
+    - Yellow: updated 2-3 days ago
+    - Red: updated >3 days ago (stale)
     """
     close_conn = False
     if conn is None:
@@ -35,15 +36,20 @@ def render_freshness(table: str, date_column: str, label: str | None = None, con
             st.caption(f"{label or table}: Latest: {latest}")
             return
 
-        if days_old <= 1:
-            color = "green"
-        elif days_old <= 3:
-            color = "orange"
-        else:
-            color = "red"
-
         display_label = label or table.replace("_", " ").title()
-        st.caption(f":{color}[{display_label} data through {latest}]")
+
+        if days_old == 0:
+            dot, relative = "🟢", "updated today"
+        elif days_old == 1:
+            dot, relative = "🟢", "updated yesterday"
+        elif days_old <= 3:
+            dot, relative = "🟡", f"updated {days_old} days ago"
+        elif days_old <= 7:
+            dot, relative = "🔴", f"updated {days_old} days ago"
+        else:
+            dot, relative = "🔴", f"stale — last updated {days_old} days ago"
+
+        st.caption(f"{dot} {display_label} — {relative} ({latest_date.strftime('%b %d')})")
 
     except Exception:
         st.caption(f"{label or table}: Unable to check freshness")

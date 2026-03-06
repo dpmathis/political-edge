@@ -120,6 +120,10 @@ with kpi_cols[3]:
     vol_str = f"${total_volume:,.0f}" if total_volume else "$0"
     st.metric("Total Volume", vol_str)
 
+st.caption(
+    "Prediction market prices reflect the crowd's estimated probability. "
+    "Markets near 50% indicate maximum uncertainty; near 0% or 100% indicate strong consensus."
+)
 
 # --- Sidebar Filters ---
 

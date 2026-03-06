@@ -244,6 +244,11 @@ with kpi_cols[3]:
     st.metric("Avg Disclosure Delay", delay_str,
               help=tooltip("Disclosure Delay"))
 
+st.caption(
+    "Congressional trades disclosed under the STOCK Act. "
+    "High buy/sell ratios may signal insider confidence in specific sectors."
+)
+
 # --- Recent Trades Table ---
 st.markdown("---")
 st.subheader("Recent Trades (Last 30 Days)")

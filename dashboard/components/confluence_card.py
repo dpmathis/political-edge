@@ -7,6 +7,17 @@ from dashboard.components.color_system import (
     render_direction_badge,
 )
 
+_NO_DATA_SIGNALS = (
+    "No regime data", "No data", "Insufficient data", "Unable to check",
+    "No active signal", "No related contracts", "No upcoming events",
+    "No recent trades", "No recent",
+)
+
+
+def _is_no_data(signal: str) -> bool:
+    """Check if a factor signal indicates missing data (vs. a negative result)."""
+    return any(phrase in signal for phrase in _NO_DATA_SIGNALS)
+
 
 def render_confluence_card(confluence_data: dict, company_name: str = "", sector: str = ""):
     """Render a compact confluence card for the ticker grid.
@@ -34,16 +45,20 @@ def render_confluence_card(confluence_data: dict, company_name: str = "", sector
     strength_colors = {"strong": "#22c55e", "moderate": "#f59e0b", "weak": "#94a3b8"}
     s_color = strength_colors.get(strength, "#94a3b8")
 
-    # Factor checklist
+    # Factor checklist — three states: contributing (green ✓), no data (gray —), negative (muted red ✗)
     check_items = []
     for f in factors:
         if f["contributing"]:
             check_items.append(
                 f'<div style="font-size:11px; color:#22c55e; margin:1px 0;">✓ {f["source"]}</div>'
             )
+        elif _is_no_data(f.get("signal", "")):
+            check_items.append(
+                f'<div style="font-size:11px; color:#cbd5e1; margin:1px 0;">— {f["source"]}</div>'
+            )
         else:
             check_items.append(
-                f'<div style="font-size:11px; color:#cbd5e1; margin:1px 0;">✗ {f["source"]}</div>'
+                f'<div style="font-size:11px; color:#e87979; margin:1px 0;">✗ {f["source"]}</div>'
             )
 
     card_html = f"""
