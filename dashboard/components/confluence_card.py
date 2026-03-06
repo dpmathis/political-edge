@@ -62,8 +62,8 @@ def render_confluence_card(confluence_data: dict, company_name: str = "", sector
             )
 
     card_html = f"""
-    <div style="border:1px solid {dir_color}33; border-radius:10px; padding:14px;
-                background:white; min-height:180px;">
+    <div style="border:1px solid {dir_color}33; border-radius:10px; padding:16px;
+                background:#ffffff; min-height:180px; box-sizing:border-box; width:100%;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
             <span style="font-size:18px; font-weight:bold;">{ticker}</span>
             {dir_badge}

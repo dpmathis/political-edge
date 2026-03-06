@@ -115,17 +115,116 @@ def _compute_all_confluence(tickers: tuple) -> dict:
     return results
 
 
+# ── Manage Watchlist ──────────────────────────────────────────────────
+with st.expander("Manage Watchlist", expanded=False):
+    mgmt_conn = sqlite3.connect(DB_PATH)
+
+    # -- Add Ticker form --
+    st.markdown("**Add Ticker**")
+    try:
+        existing_sectors = [
+            r[0] for r in mgmt_conn.execute(
+                "SELECT DISTINCT sector FROM watchlist WHERE sector IS NOT NULL ORDER BY sector"
+            ).fetchall()
+        ]
+    except Exception:
+        existing_sectors = []
+    sector_options = existing_sectors or ["Defense", "Healthcare", "Energy", "Technology"]
+
+    with st.form("add_ticker_form", clear_on_submit=True):
+        add_cols = st.columns([1, 2, 1])
+        with add_cols[0]:
+            new_ticker = st.text_input("Ticker Symbol", placeholder="e.g. AAPL")
+        with add_cols[1]:
+            new_company = st.text_input("Company Name", placeholder="e.g. Apple Inc.")
+        with add_cols[2]:
+            new_sector = st.selectbox("Sector", options=sector_options)
+
+        detail_cols = st.columns(3)
+        with detail_cols[0]:
+            new_subsector = st.text_input("Subsector", placeholder="e.g. Consumer Electronics")
+        with detail_cols[1]:
+            new_agencies = st.text_input("Key Agencies", placeholder="e.g. SEC,FTC")
+        with detail_cols[2]:
+            new_keywords = st.text_input("Key Keywords", placeholder="e.g. antitrust,privacy")
+
+        submitted = st.form_submit_button("Add to Watchlist", type="primary")
+
+        if submitted and new_ticker:
+            ticker_clean = new_ticker.upper().strip()
+            try:
+                mgmt_conn.execute(
+                    """INSERT OR IGNORE INTO watchlist
+                       (ticker, company_name, sector, subsector, key_agencies, key_keywords)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (ticker_clean, new_company.strip(), new_sector,
+                     new_subsector.strip(), new_agencies.strip(), new_keywords.strip()),
+                )
+                mgmt_conn.commit()
+                st.success(f"Added **{ticker_clean}** to watchlist.")
+                st.cache_data.clear()
+                mgmt_conn.close()
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to add ticker: {e}")
+
+    # -- Current watchlist with toggle/remove --
+    st.markdown("**Current Watchlist**")
+    try:
+        all_wl = pd.read_sql_query(
+            "SELECT ticker, company_name, sector, active, added_date FROM watchlist ORDER BY sector, ticker",
+            mgmt_conn,
+        )
+    except Exception:
+        all_wl = pd.DataFrame()
+
+    if not all_wl.empty:
+        for _, row in all_wl.iterrows():
+            t = row["ticker"]
+            is_active = bool(row["active"])
+            status_icon = "🟢" if is_active else "⚪"
+            btn_cols = st.columns([3, 1, 1])
+            with btn_cols[0]:
+                st.markdown(f"{status_icon} **{t}** — {row['company_name'] or ''} ({row['sector'] or ''})")
+            with btn_cols[1]:
+                toggle_label = "Deactivate" if is_active else "Activate"
+                if st.button(toggle_label, key=f"toggle_{t}"):
+                    mgmt_conn.execute(
+                        "UPDATE watchlist SET active = ? WHERE ticker = ?",
+                        (0 if is_active else 1, t),
+                    )
+                    mgmt_conn.commit()
+                    st.cache_data.clear()
+                    mgmt_conn.close()
+                    st.rerun()
+            with btn_cols[2]:
+                confirm_key = f"confirm_remove_{t}"
+                if st.session_state.get(confirm_key):
+                    if st.button("Confirm", key=f"do_remove_{t}", type="primary"):
+                        mgmt_conn.execute("DELETE FROM watchlist WHERE ticker = ?", (t,))
+                        mgmt_conn.commit()
+                        st.session_state.pop(confirm_key, None)
+                        st.cache_data.clear()
+                        mgmt_conn.close()
+                        st.rerun()
+                else:
+                    if st.button("Remove", key=f"remove_{t}"):
+                        st.session_state[confirm_key] = True
+                        st.rerun()
+
+    mgmt_conn.close()
+
 # ── Load Watchlist ────────────────────────────────────────────────────
 watchlist_df = _load_watchlist()
 
 if watchlist_df.empty:
-    st.warning("No tickers in watchlist. Add tickers in `config.yaml` under the `watchlist` section, then run data collection from **Settings**.")
+    st.warning("No tickers in watchlist. Use the **Manage Watchlist** section above to add tickers.")
     conn.close()
     st.stop()
 
 active_df = watchlist_df[watchlist_df["active"] == 1]
 if active_df.empty:
-    st.warning("No active tickers in watchlist.")
+    st.warning("No active tickers in watchlist. Use the **Manage Watchlist** section above to activate tickers.")
     conn.close()
     st.stop()
 
@@ -138,7 +237,8 @@ st.caption(
 
 # Compute confluence for all active tickers
 all_tickers = tuple(active_df["ticker"].tolist())
-confluence_data = _compute_all_confluence(all_tickers)
+with st.spinner("Computing confluence scores..."):
+    confluence_data = _compute_all_confluence(all_tickers)
 
 # Sort by score descending
 sorted_tickers = sorted(all_tickers, key=lambda t: confluence_data.get(t, {}).get("score", 0), reverse=True)

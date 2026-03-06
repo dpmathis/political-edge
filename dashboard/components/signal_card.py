@@ -197,9 +197,9 @@ def _render_card(signal: dict, show_evidence: bool, conn: sqlite3.Connection):
     # Main card: header + full narrative
     card_html = f"""
     <div style="border:1px solid {dir_color}33; border-left:4px solid {dir_color};
-                border-radius:8px; padding:16px; margin-bottom:4px;
-                background:white;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                border-radius:10px; padding:16px; margin-bottom:4px;
+                background:#ffffff;">
+        <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <div style="display:flex; align-items:center; gap:10px;">
                 {dir_badge}
                 <span style="font-size:20px; font-weight:bold;">{ticker}</span>

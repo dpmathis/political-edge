@@ -78,7 +78,8 @@ def get_alpaca_account():
 
 
 # ── Row 1: Portfolio Summary ──────────────────────────────────────────
-account_info, positions = get_alpaca_account()
+with st.spinner("Loading portfolio..."):
+    account_info, positions = get_alpaca_account()
 
 if account_info:
     st.subheader("Portfolio Summary")

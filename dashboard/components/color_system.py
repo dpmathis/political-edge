@@ -120,6 +120,18 @@ def render_conviction_bar_simple(level: str) -> str:
     )
 
 
+# ── Design Tokens ────────────────────────────────────────────────────
+CARD_BORDER_RADIUS = "10px"
+CARD_PADDING = "16px"
+CARD_BACKGROUND = "#ffffff"
+CARD_ACCENT_WIDTH = "4px"
+CARD_TEXT_BODY = "#334155"
+CARD_TEXT_MUTED = "#94a3b8"
+
+BANNER_BORDER_RADIUS = "12px"
+BANNER_PADDING = "24px"
+
+
 def hex_to_rgba(hex_color: str, alpha: float = 0.13) -> str:
     """Convert hex color to rgba string for Plotly compatibility."""
     h = hex_color.lstrip("#")

@@ -48,6 +48,73 @@ for i, (label, (table, col)) in enumerate(freshness_queries.items()):
 
 conn.close()
 
+# ── Alert Preferences ────────────────────────────────────────────
+st.markdown("---")
+st.subheader("Alert Preferences")
+st.caption("Configure which alerts you receive and how")
+
+from dashboard.components.preferences import get_pref, set_pref, get_pref_json, set_pref_json
+
+_ALERT_RULES = [
+    ("High-Impact Regulatory Event", "Events with impact score >= 4"),
+    ("New Executive Order", "Any new executive order"),
+    ("FDA Final Rule", "FDA final rules"),
+    ("Lobbying Spend Spike", "Companies with >25% QoQ lobbying increase"),
+    ("Macro Regime Change", "When the macro quadrant shifts"),
+    ("High-Conviction Signals", "New high-conviction trading signals"),
+    ("Pipeline Deadlines", "Regulatory comment deadlines within 7 days"),
+    ("Data Staleness", "Warning when data sources go stale"),
+]
+
+with st.form("alert_prefs"):
+    alert_enabled = st.toggle(
+        "Enable Email Alerts",
+        value=get_pref("alert_enabled", "false") == "true",
+    )
+    alert_email = st.text_input(
+        "Alert Email",
+        value=get_pref("alert_email", ""),
+        placeholder="you@example.com",
+    )
+
+    st.markdown("**Alert Rules**")
+    current_rules = get_pref_json("alert_rules", {r: True for r, _ in _ALERT_RULES})
+    enabled_rules = {}
+    rule_cols = st.columns(2)
+    for i, (rule_name, description) in enumerate(_ALERT_RULES):
+        with rule_cols[i % 2]:
+            enabled_rules[rule_name] = st.checkbox(
+                rule_name,
+                value=current_rules.get(rule_name, True),
+                help=description,
+            )
+
+    st.markdown("**Filters**")
+    filter_cols = st.columns(2)
+    with filter_cols[0]:
+        conviction_options = ["low", "medium", "high"]
+        min_conviction = st.selectbox(
+            "Minimum Conviction for Signal Alerts",
+            conviction_options,
+            index=conviction_options.index(get_pref("alert_min_conviction", "medium")),
+        )
+    with filter_cols[1]:
+        sector_options = ["Defense", "Healthcare", "Energy", "Technology", "Financial", "Agriculture"]
+        current_sectors = get_pref_json("alert_sectors", sector_options)
+        selected_sectors = st.multiselect(
+            "Sectors of Interest",
+            sector_options,
+            default=[s for s in current_sectors if s in sector_options],
+        )
+
+    if st.form_submit_button("Save Alert Preferences", type="primary"):
+        set_pref("alert_enabled", "true" if alert_enabled else "false")
+        set_pref("alert_email", alert_email)
+        set_pref_json("alert_rules", enabled_rules)
+        set_pref("alert_min_conviction", min_conviction)
+        set_pref_json("alert_sectors", selected_sectors)
+        st.success("Alert preferences saved.")
+
 # ── Data Collection ──────────────────────────────────────────────
 st.markdown("---")
 st.subheader("Data Collection")

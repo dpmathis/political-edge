@@ -189,7 +189,7 @@ def render_event_with_context(event: dict, conn: sqlite3.Connection = None):
         # Critical — prominent banner
         card_html = f"""
         <div style="border:1px solid {color}44; border-left:4px solid {color};
-                    background:{bg}; border-radius:8px; padding:14px; margin-bottom:10px;">
+                    background:{bg}; border-radius:10px; padding:16px; margin-bottom:10px;">
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
                 <span style="font-weight:700; color:{color};">Impact {impact_score} — {label}</span>
                 <span style="color:#64748b; font-size:12px;">| {event_type}</span>
@@ -204,8 +204,8 @@ def render_event_with_context(event: dict, conn: sqlite3.Connection = None):
     elif impact_score >= 4:
         # High — compact card
         card_html = f"""
-        <div style="border:1px solid {color}33; border-left:3px solid {color};
-                    border-radius:6px; padding:10px; margin-bottom:8px;">
+        <div style="border:1px solid {color}33; border-left:4px solid {color};
+                    border-radius:10px; padding:16px; margin-bottom:8px;">
             <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px;">
                 <span style="font-weight:600; color:{color}; font-size:13px;">Impact {impact_score}</span>
                 <span style="color:#64748b; font-size:12px;">| {event_type} ({agency[:25]})</span>

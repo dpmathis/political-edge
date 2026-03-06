@@ -14,6 +14,7 @@ import sqlite3
 import streamlit as st
 
 from config import DB_PATH
+from dashboard.components.responsive import inject_responsive_css
 
 st.set_page_config(
     page_title="Political Edge",
@@ -21,6 +22,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+inject_responsive_css()
 
 # ── Database Bootstrap ────────────────────────────────────────────────
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -93,7 +96,8 @@ def _ensure_db():
         ).fetchall())
         conn.close()
         required = {"fda_events", "trading_signals", "prediction_markets",
-                     "data_collection_log", "event_studies", "pipeline_rules"}
+                     "data_collection_log", "event_studies", "pipeline_rules",
+                     "user_preferences"}
         if not required.issubset(tables):
             from scripts.migrate_phase2 import main as migrate_main
             migrate_main()

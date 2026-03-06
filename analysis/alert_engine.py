@@ -23,6 +23,25 @@ def _get_alert_config() -> dict | None:
     cfg = load_config()
     alerts = cfg.get("alerts", {})
 
+    # Read user preferences from DB (override config.yaml)
+    prefs = {}
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        for row in conn.execute("SELECT key, value FROM user_preferences").fetchall():
+            prefs[row[0]] = row[1]
+        conn.close()
+    except Exception:
+        pass
+
+    # User can disable alerts
+    if prefs.get("alert_enabled") == "false":
+        logger.debug("Alerts disabled by user preference")
+        return None
+
+    # User email overrides config
+    if prefs.get("alert_email"):
+        alerts["email"] = prefs["alert_email"]
+
     if not alerts.get("smtp_user") or not alerts.get("smtp_password"):
         logger.debug("Alert email not configured, skipping")
         return None
@@ -30,6 +49,18 @@ def _get_alert_config() -> dict | None:
     if not alerts.get("email"):
         logger.debug("No alert recipient configured, skipping")
         return None
+
+    # Filter rules based on user preferences
+    if "alert_rules" in prefs:
+        import json
+        try:
+            enabled_rules = json.loads(prefs["alert_rules"])
+            alerts["rules"] = [
+                r for r in alerts.get("rules", [])
+                if enabled_rules.get(r.get("name", ""), True)
+            ]
+        except (json.JSONDecodeError, TypeError):
+            pass
 
     return alerts
 

@@ -212,6 +212,14 @@ CREATE TABLE IF NOT EXISTS data_collection_log (
     status TEXT DEFAULT 'running'
 );
 CREATE INDEX IF NOT EXISTS idx_dcl_collector ON data_collection_log(collector_name, started_at DESC);
+
+-- Phase 4 UX: User Preferences
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT UNIQUE NOT NULL,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 

@@ -163,7 +163,7 @@ def render_briefing(conn: sqlite3.Connection = None):
     st.markdown(
         f"""
         <div style="background:linear-gradient(135deg, #1e293b 0%, #334155 100%);
-                    border-radius:12px; padding:24px 28px; margin-bottom:20px;
+                    border-radius:12px; padding:24px; margin-bottom:20px;
                     color:#f1f5f9; line-height:1.6; font-size:15px;">
             {html_text}
         </div>
