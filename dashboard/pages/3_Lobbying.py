@@ -14,7 +14,6 @@ import streamlit as st
 from config import DB_PATH
 from dashboard.components.glossary import inject_tooltip_css, tooltip
 
-st.set_page_config(page_title="Lobbying", layout="wide")
 st.title("Lobbying Activity")
 st.caption("Lobbying disclosure filings with QoQ spending analysis")
 inject_tooltip_css()

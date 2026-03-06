@@ -13,9 +13,8 @@ import streamlit as st
 
 from config import DB_PATH
 from dashboard.components.freshness import render_freshness
-from dashboard.components.glossary import inject_tooltip_css
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 
-st.set_page_config(page_title="Prediction Markets", layout="wide")
 st.title("Prediction Markets")
 st.caption("Political prediction market probabilities and trends")
 inject_tooltip_css()
@@ -109,12 +108,14 @@ total_markets, category_count, avg_prob, total_volume = summary
 
 kpi_cols = st.columns(4)
 with kpi_cols[0]:
-    st.metric("Total Markets", f"{total_markets:,}")
+    st.metric("Total Markets", f"{total_markets:,}",
+              help=tooltip("Prediction Market"))
 with kpi_cols[1]:
     st.metric("Active Categories", f"{category_count:,}")
 with kpi_cols[2]:
     prob_str = f"{avg_prob:.0%}" if avg_prob else "N/A"
-    st.metric("Avg Probability", prob_str)
+    st.metric("Avg Probability", prob_str,
+              help="Average probability across all tracked markets. 50% = maximum uncertainty.")
 with kpi_cols[3]:
     vol_str = f"${total_volume:,.0f}" if total_volume else "$0"
     st.metric("Total Volume", vol_str)

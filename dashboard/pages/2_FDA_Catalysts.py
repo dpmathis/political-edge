@@ -15,7 +15,6 @@ import streamlit as st
 from config import DB_PATH
 from dashboard.components.glossary import inject_tooltip_css, tooltip
 
-st.set_page_config(page_title="FDA Catalysts", layout="wide")
 st.title("FDA Catalysts")
 st.caption("FDA advisory committee votes, approvals, and event study results")
 inject_tooltip_css()

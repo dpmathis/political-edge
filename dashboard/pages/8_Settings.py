@@ -15,7 +15,6 @@ import streamlit as st
 from config import DB_PATH
 from dashboard.collection_logger import log_collection_step
 
-st.set_page_config(page_title="Settings", layout="wide")
 st.title("Settings & Data")
 st.caption("Data collection, backfill, backtesting, and data health monitoring")
 
@@ -337,6 +336,56 @@ if hist_rows:
     st.dataframe(hist_df, use_container_width=True, hide_index=True)
 else:
     st.info("No collection history yet. Run 'Collect Now' above to populate.")
+
+# ── Signal & Trade Management ────────────────────────────────────
+st.markdown("---")
+st.subheader("Signal & Trade Management")
+
+mgmt_col1, mgmt_col2 = st.columns(2)
+
+with mgmt_col1:
+    st.markdown("**Signal Generation**")
+    if st.button("Generate Signals", type="primary", key="settings_gen_signals"):
+        with st.spinner("Generating signals..."):
+            try:
+                from analysis.signal_generator import generate_signals
+                new_signals = generate_signals()
+                st.success(f"Generated {len(new_signals)} new signals")
+                st.cache_data.clear()
+            except Exception as e:
+                st.error(f"Signal generation failed: {e}")
+    if st.button("Review Active Signals", key="settings_review_signals"):
+        with st.spinner("Reviewing active signals..."):
+            try:
+                from analysis.signal_generator import review_active_signals
+                closed = review_active_signals()
+                st.success(f"Closed {closed} signals (exit conditions met)")
+                st.cache_data.clear()
+            except Exception as e:
+                st.error(f"Signal review failed: {e}")
+
+with mgmt_col2:
+    st.markdown("**Trade Reconciliation**")
+    if st.button("Reconcile Trades", key="settings_reconcile"):
+        with st.spinner("Reconciling with Alpaca..."):
+            try:
+                from execution.paper_trader import PaperTrader
+                trader = PaperTrader()
+                updated = trader.reconcile_trades()
+                st.success(f"Reconciled {updated} trades")
+                st.cache_data.clear()
+            except Exception as e:
+                st.error(f"Reconciliation failed: {e}")
+    if st.button("Close Expired Positions", key="settings_close_expired"):
+        with st.spinner("Closing expired positions..."):
+            try:
+                from execution.paper_trader import PaperTrader
+                trader = PaperTrader()
+                closed = trader.close_expired_positions()
+                st.success(f"Closed {closed} expired positions")
+                st.cache_data.clear()
+            except Exception as e:
+                st.error(f"Failed: {e}")
 
 # ── Data Sources ─────────────────────────────────────────────────
 st.markdown("---")

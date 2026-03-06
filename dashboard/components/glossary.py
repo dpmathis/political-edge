@@ -116,6 +116,38 @@ GLOSSARY = {
         "A what-if analysis: if selected proposed rules finalize (or are withdrawn), "
         "what's the expected market impact based on historical data?"
     ),
+    "Contract Award": (
+        "A federal government contract given to a company via USASpending. "
+        "Large awards can move the recipient's stock price."
+    ),
+    "Congressional Trade": (
+        "A stock trade disclosed by a member of Congress under the STOCK Act. "
+        "Historically, congressional trades have outperformed the market."
+    ),
+    "Disclosure Delay": (
+        "Days between when a congressional trade happened and when it was publicly "
+        "disclosed. Longer delays may indicate less urgency or oversight gaps."
+    ),
+    "Prediction Market": (
+        "A market where participants trade contracts on the outcome of future events. "
+        "Prices reflect the crowd's estimated probability of each outcome."
+    ),
+    "Backtest": (
+        "Running a trading strategy against historical data to see how it would have "
+        "performed. Helps validate whether a signal has real predictive power."
+    ),
+    "Event Study": (
+        "A statistical method that measures how a stock reacts to a specific event "
+        "(e.g., FDA approval, regulation). Compares actual vs. expected returns."
+    ),
+    "Sector Mapping": (
+        "Linking a regulatory event or government action to the stock market sector "
+        "it most likely affects. Used to identify which ETFs or stocks to trade."
+    ),
+    "Data Freshness": (
+        "How recently each data source was updated. Stale data (>24h old) may "
+        "mean the collector needs to be re-run from Settings."
+    ),
 }
 
 

@@ -148,15 +148,24 @@ def _build_briefing(conn: sqlite3.Connection) -> str:
     return " ".join(sentences)
 
 
+def _md_to_html(text: str) -> str:
+    """Convert basic markdown bold/italic to HTML for embedding in HTML blocks."""
+    import re
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+    return text
+
+
 def render_briefing(conn: sqlite3.Connection = None):
     """Render the daily briefing as a styled banner."""
     text = generate_briefing(conn)
+    html_text = _md_to_html(text)
     st.markdown(
         f"""
         <div style="background:linear-gradient(135deg, #1e293b 0%, #334155 100%);
                     border-radius:12px; padding:24px 28px; margin-bottom:20px;
                     color:#f1f5f9; line-height:1.6; font-size:15px;">
-            {text}
+            {html_text}
         </div>
         """,
         unsafe_allow_html=True,

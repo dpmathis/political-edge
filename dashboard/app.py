@@ -1,7 +1,8 @@
-"""Political Edge — Main Streamlit Dashboard."""
+"""Political Edge — Main Streamlit Entrypoint."""
 
 import os
 import sys
+from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -114,60 +115,37 @@ try:
 except Exception as _e:
     st.sidebar.error(f"DB error: {_e}")
 
-st.title("Political Edge")
-st.subheader("Political & Regulatory Trading Intelligence")
+# ── Navigation ────────────────────────────────────────────────────────
+_PAGES = Path(__file__).parent / "pages"
 
-st.markdown(
-    "Track regulatory events and map them to market-tradeable signals. "
-    "Use the sidebar to navigate between pages."
-)
+pages = {
+    "": [
+        st.Page(str(_PAGES / "home.py"), title="Home", icon="🏠", default=True),
+    ],
+    "Daily Briefing": [
+        st.Page(str(_PAGES / "0_Today.py"), title="Today", icon="📊"),
+    ],
+    "Market Intelligence": [
+        st.Page(str(_PAGES / "4_Watchlist.py"), title="Watchlist", icon="👁️"),
+        st.Page(str(_PAGES / "6_Signals.py"), title="Signals", icon="⚡"),
+        st.Page(str(_PAGES / "5_Macro.py"), title="Macro & Fed", icon="🏦"),
+    ],
+    "Data Feeds": [
+        st.Page(str(_PAGES / "1_RegWatch.py"), title="RegWatch", icon="📋"),
+        st.Page(str(_PAGES / "2_FDA_Catalysts.py"), title="FDA Catalysts", icon="💊"),
+        st.Page(str(_PAGES / "3_Lobbying.py"), title="Lobbying", icon="🏢"),
+        st.Page(str(_PAGES / "13_Congress_Trades.py"), title="Congress Trades", icon="🏛️"),
+        st.Page(str(_PAGES / "12_Contracts.py"), title="Contracts", icon="📑"),
+        st.Page(str(_PAGES / "14_Prediction_Markets.py"), title="Prediction Markets", icon="🎯"),
+        st.Page(str(_PAGES / "7_EO_Tracker.py"), title="EO Tracker", icon="📜"),
+        st.Page(str(_PAGES / "10_Pipeline.py"), title="Pipeline", icon="🔄"),
+    ],
+    "Advanced": [
+        st.Page(str(_PAGES / "9_Research.py"), title="Research", icon="🔬"),
+        st.Page(str(_PAGES / "11_Backtests.py"), title="Backtests", icon="📈"),
+        st.Page(str(_PAGES / "8_Settings.py"), title="Settings", icon="⚙️"),
+    ],
+}
 
-st.markdown("""
-**Pages:**
-- **Today** — Actionable trading view: signals, catalysts, regime
-- **RegWatch** — Regulatory events from Federal Register, Congress, Regulations.gov
-- **FDA Catalysts** — Drug approvals, AdCom votes, PDUFA dates
-- **Lobbying** — Lobbying disclosure filings and QoQ spending analysis
-- **Watchlist** — Combined view of all data for tracked tickers
-- **Macro & Fed** — Hedgeye-style regime classifier and FOMC tracker
-- **Signals** — Trading signal generation and paper trade execution
-- **EO Tracker** — Executive order topic classification with evidence-based signals
-- **Settings** — Data collection, backfill, backtesting, and data health
-- **Research** — Event study research reports with interactive visualizations
-- **Pipeline** — Regulatory pipeline monitor and scenario builder
-- **Backtests** — Run and visualize hypothesis backtests
-- **Contracts** — Federal contract awards and watchlist-linked analysis
-- **Congress Trades** — Congressional stock trading disclosures
-- **Prediction Markets** — Political prediction market probabilities and trends
-""")
-
-# Show database stats
-conn = sqlite3.connect(DB_PATH)
-stats = {}
-for label, table in [
-    ("Regulatory Events", "regulatory_events"),
-    ("FDA Events", "fda_events"),
-    ("Lobbying Filings", "lobbying_filings"),
-    ("Congress Trades", "congress_trades"),
-    ("Contract Awards", "contract_awards"),
-    ("Prediction Markets", "prediction_markets"),
-    ("FOMC Events", "fomc_events"),
-    ("Trading Signals", "trading_signals"),
-    ("Market Data", "market_data"),
-]:
-    try:
-        stats[label] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-    except Exception:
-        stats[label] = 0
-conn.close()
-
-stat_cols = st.columns(len(stats))
-for i, (label, value) in enumerate(stats.items()):
-    with stat_cols[i]:
-        st.metric(label, f"{value:,}")
-
-total_records = sum(stats.values())
-if total_records == 0:
-    st.warning(
-        "**Database is empty.** Go to the **Settings** page to fetch data."
-    )
+pg = st.navigation(pages)
+pg.run()

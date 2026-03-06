@@ -19,36 +19,15 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from config import DB_PATH
-from dashboard.components.glossary import inject_tooltip_css, tooltip, GLOSSARY
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 from dashboard.components.research_charts import render_study_section
 
 from dashboard.components.freshness import render_freshness
 
-st.set_page_config(page_title="Pipeline", layout="wide")
 st.title("Pipeline Monitor")
 st.caption("Track proposed rules through the regulatory pipeline — where the alpha lives")
 inject_tooltip_css()
 render_freshness("pipeline_rules", "created_at", "Pipeline Rules")
-
-# Add pipeline-specific glossary terms
-GLOSSARY.update({
-    "Pipeline Pressure": (
-        "Count of proposed rules past their comment deadline without a matching "
-        "final rule. High pressure = more regulatory uncertainty for that sector."
-    ),
-    "Proposed Rule": (
-        "A regulation that an agency wants to implement. There's a public comment "
-        "period before it becomes final. Markets tend to underreact to these."
-    ),
-    "Comment Deadline": (
-        "The date when public comment on a proposed rule closes. After this, "
-        "the agency moves toward a final decision."
-    ),
-    "Estimated Final Date": (
-        "When we predict the final rule will be published, based on how long "
-        "this agency typically takes from proposed to final."
-    ),
-})
 
 conn = sqlite3.connect(DB_PATH)
 

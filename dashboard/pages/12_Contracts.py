@@ -12,12 +12,13 @@ import plotly.express as px
 import streamlit as st
 
 from config import DB_PATH
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 
 from dashboard.components.freshness import render_freshness
 
-st.set_page_config(page_title="Government Contracts", layout="wide")
 st.title("Government Contracts")
 st.caption("Federal contract awards from USASpending with agency and watchlist analysis")
+inject_tooltip_css()
 render_freshness("contract_awards", "award_date", "Contract Awards")
 
 
@@ -178,11 +179,13 @@ total_awards, total_value, watchlist_linked, avg_size = metrics
 
 kpi_cols = st.columns(4)
 with kpi_cols[0]:
-    st.metric("Total Awards", f"{total_awards:,}")
+    st.metric("Total Awards", f"{total_awards:,}",
+              help=tooltip("Contract Award"))
 with kpi_cols[1]:
     st.metric("Total Value", format_currency(total_value))
 with kpi_cols[2]:
-    st.metric("Watchlist-Linked", f"{watchlist_linked:,}")
+    st.metric("Watchlist-Linked", f"{watchlist_linked:,}",
+              help="Awards to companies on your watchlist — these may generate trading signals")
 with kpi_cols[3]:
     st.metric("Average Award Size", format_currency(avg_size))
 

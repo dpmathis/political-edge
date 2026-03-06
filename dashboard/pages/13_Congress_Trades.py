@@ -13,9 +13,8 @@ import plotly.express as px
 import streamlit as st
 
 from config import DB_PATH
-from dashboard.components.glossary import inject_tooltip_css
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 
-st.set_page_config(page_title="Congress Trades", layout="wide")
 st.title("Congress Trades")
 st.caption("Congressional stock trading disclosures with party, ticker, and disclosure delay analysis")
 inject_tooltip_css()
@@ -234,14 +233,16 @@ total_trades, unique_politicians, buy_count, sell_count, avg_delay = summary
 
 kpi_cols = st.columns(4)
 with kpi_cols[0]:
-    st.metric("Total Trades", f"{total_trades:,}")
+    st.metric("Total Trades", f"{total_trades:,}",
+              help=tooltip("Congressional Trade"))
 with kpi_cols[1]:
     st.metric("Unique Politicians", f"{unique_politicians:,}")
 with kpi_cols[2]:
     st.metric("Buy / Sell Split", f"{buy_count:,} buys / {sell_count:,} sells")
 with kpi_cols[3]:
     delay_str = f"{avg_delay:.0f} days" if avg_delay and not pd.isna(avg_delay) else "N/A"
-    st.metric("Avg Disclosure Delay", delay_str)
+    st.metric("Avg Disclosure Delay", delay_str,
+              help=tooltip("Disclosure Delay"))
 
 # --- Recent Trades Table ---
 st.markdown("---")

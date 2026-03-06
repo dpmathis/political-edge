@@ -31,7 +31,6 @@ from dashboard.components.signal_card import render_signal_card
 
 from dashboard.components.freshness import render_freshness
 
-st.set_page_config(page_title="Today", layout="wide")
 st.title("Today")
 st.caption("What should you trade today?")
 inject_tooltip_css()

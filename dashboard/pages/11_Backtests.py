@@ -12,11 +12,10 @@ import plotly.express as px
 import streamlit as st
 
 from config import DB_PATH
-from dashboard.components.glossary import inject_tooltip_css
+from dashboard.components.glossary import inject_tooltip_css, tooltip
 
 from dashboard.components.freshness import render_freshness
 
-st.set_page_config(page_title="Backtests", layout="wide")
 st.title("Backtests")
 st.caption("Run event study backtests and compare hypothesis performance")
 inject_tooltip_css()

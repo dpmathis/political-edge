@@ -15,7 +15,6 @@ from config import DB_PATH
 from dashboard.components.glossary import inject_tooltip_css, tooltip
 from dashboard.components.signal_card import render_signal_card
 
-st.set_page_config(page_title="Signals", layout="wide")
 st.title("Signals & Paper Trading")
 st.caption("Trading signal management and paper portfolio tracking")
 inject_tooltip_css()
@@ -128,63 +127,16 @@ if account_info:
         pos_df["market_value"] = pos_df["market_value"].apply(lambda x: f"${x:,.2f}")
         st.dataframe(pos_df, use_container_width=True, hide_index=True)
 
-    # Reconcile button
-    recon_col1, recon_col2 = st.columns(2)
-    with recon_col1:
-        if st.button("Reconcile Trades"):
-            with st.spinner("Reconciling with Alpaca..."):
-                try:
-                    from execution.paper_trader import PaperTrader
-                    trader = PaperTrader()
-                    updated = trader.reconcile_trades()
-                    st.success(f"Reconciled {updated} trades")
-                    st.cache_data.clear()
-                except Exception as e:
-                    st.error(f"Reconciliation failed: {e}")
-    with recon_col2:
-        if st.button("Close Expired Positions"):
-            with st.spinner("Closing expired positions..."):
-                try:
-                    from execution.paper_trader import PaperTrader
-                    trader = PaperTrader()
-                    closed = trader.close_expired_positions()
-                    st.success(f"Closed {closed} expired positions")
-                    st.cache_data.clear()
-                except Exception as e:
-                    st.error(f"Failed: {e}")
-
     st.markdown("---")
 else:
     st.info("Alpaca paper trading not configured. Add `alpaca_key_id` and `alpaca_secret_key` to config.yaml to enable portfolio tracking.")
 
-# ── Signal Generation Controls ────────────────────────────────────────
-st.subheader("Signal Management")
+# ── Signal Filters ────────────────────────────────────────────────────
+st.subheader("Trading Signals")
 
-ctrl_col1, ctrl_col2, ctrl_col3 = st.columns(3)
+filter_col1, filter_col2 = st.columns([1, 3])
 
-with ctrl_col1:
-    if st.button("Generate Signals", type="primary"):
-        with st.spinner("Generating signals..."):
-            try:
-                from analysis.signal_generator import generate_signals
-                new_signals = generate_signals()
-                st.success(f"Generated {len(new_signals)} new signals")
-                st.cache_data.clear()
-            except Exception as e:
-                st.error(f"Signal generation failed: {e}")
-
-with ctrl_col2:
-    if st.button("Review Active Signals"):
-        with st.spinner("Reviewing active signals..."):
-            try:
-                from analysis.signal_generator import review_active_signals
-                closed = review_active_signals()
-                st.success(f"Closed {closed} signals (exit conditions met)")
-                st.cache_data.clear()
-            except Exception as e:
-                st.error(f"Signal review failed: {e}")
-
-with ctrl_col3:
+with filter_col1:
     status_filter = st.selectbox(
         "Filter by status",
         ["All", "pending", "active", "closed", "expired", "skipped"],
