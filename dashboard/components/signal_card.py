@@ -11,7 +11,6 @@ import streamlit as st
 
 from config import DB_PATH
 from dashboard.components.color_system import (
-    CONVICTION_COLORS,
     DIRECTION_COLORS,
     render_conviction_bar,
     render_direction_badge,
