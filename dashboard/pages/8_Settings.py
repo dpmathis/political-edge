@@ -115,6 +115,35 @@ with st.form("alert_prefs"):
         set_pref_json("alert_sectors", selected_sectors)
         st.success("Alert preferences saved.")
 
+# ── Alert Preview ────────────────────────────────────────────────
+preview_col1, preview_col2 = st.columns([2, 1])
+
+with preview_col1:
+    if st.button("Preview Alerts"):
+        with st.spinner("Evaluating alert rules..."):
+            try:
+                from analysis.alert_engine import dry_run_alerts
+                fired = dry_run_alerts()
+            except Exception as e:
+                st.error(f"Alert preview failed: {e}")
+                fired = None
+
+            if fired is not None:
+                if not fired:
+                    st.success("No alerts would fire right now. All clear.")
+                else:
+                    st.warning(f"{len(fired)} alert(s) would fire:")
+                    for alert in fired:
+                        with st.expander(f"{alert['rule_name']} ({alert['event_count']} events)"):
+                            st.text(alert["body"])
+
+with preview_col2:
+    st.caption(
+        "Preview evaluates all enabled alert rules against current data "
+        "without sending any emails. Use this to verify your alert "
+        "configuration is working as expected."
+    )
+
 # ── Data Collection ──────────────────────────────────────────────
 st.markdown("---")
 st.subheader("Data Collection")

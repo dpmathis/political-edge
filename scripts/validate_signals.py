@@ -16,12 +16,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import sqlite3
-
-import numpy as np
 import pandas as pd
 
-from config import DB_PATH
+from analysis.signal_validator import validate_signals
 
 
 def main():
@@ -30,100 +27,49 @@ def main():
     parser.add_argument("--type", type=str, help="Filter by signal type")
     args = parser.parse_args()
 
-    conn = sqlite3.connect(DB_PATH)
+    result = validate_signals()
 
-    query = """SELECT id, signal_date, ticker, signal_type, direction, conviction,
-                      time_horizon_days, expected_car
-               FROM trading_signals
-               ORDER BY signal_date"""
-    signals = pd.read_sql_query(query, conn)
-
-    if signals.empty:
+    if not result:
         print("No signals found in trading_signals table.")
-        conn.close()
         return
 
-    if args.ticker:
-        signals = signals[signals["ticker"] == args.ticker.upper()]
-    if args.type:
-        signals = signals[signals["signal_type"] == args.type]
-
-    if signals.empty:
-        print("No signals match the filter criteria.")
-        conn.close()
-        return
-
-    results = []
-    skipped = 0
-
-    for _, sig in signals.iterrows():
-        ticker = sig["ticker"]
-        entry_date = sig["signal_date"]
-        horizon = int(sig["time_horizon_days"]) if pd.notna(sig["time_horizon_days"]) else 10
-        direction = sig["direction"]
-
-        if direction not in ("long", "short"):
-            skipped += 1
-            continue
-
-        prices = pd.read_sql_query(
-            """SELECT date, close FROM market_data
-               WHERE ticker = ? AND date >= ?
-               ORDER BY date LIMIT ?""",
-            conn,
-            params=(ticker, entry_date, horizon + 1),
-        )
-
-        if len(prices) < 2:
-            skipped += 1
-            continue
-
-        entry_price = prices.iloc[0]["close"]
-        exit_price = prices.iloc[-1]["close"]
-
-        if entry_price == 0 or pd.isna(entry_price):
-            skipped += 1
-            continue
-
-        raw_return = (exit_price - entry_price) / entry_price
-        adj_return = raw_return if direction == "long" else -raw_return
-
-        results.append({
-            "signal_type": sig["signal_type"],
-            "ticker": ticker,
-            "direction": direction,
-            "conviction": sig["conviction"],
-            "entry_date": entry_date,
-            "horizon": horizon,
-            "raw_return": raw_return,
-            "adj_return": adj_return,
-            "expected_car": sig["expected_car"],
-            "win": adj_return > 0,
-        })
-
-    conn.close()
-
-    if not results:
+    overall = result.get("overall", {})
+    if overall.get("n_evaluated", 0) == 0:
+        skipped = overall.get("n_skipped", 0)
         print(f"No signals with matching market data. ({skipped} skipped)")
         return
 
-    df = pd.DataFrame(results)
+    df = result["results_df"]
+    summary = result["by_type"]
 
-    # Per-signal-type summary
-    summary = df.groupby("signal_type").agg(
-        n_signals=("adj_return", "count"),
-        win_rate=("win", "mean"),
-        mean_return=("adj_return", "mean"),
-        median_return=("adj_return", "median"),
-        std_return=("adj_return", "std"),
-    ).reset_index()
+    # Apply CLI filters
+    if args.ticker:
+        df = df[df["ticker"] == args.ticker.upper()]
+    if args.type:
+        df = df[df["signal_type"] == args.type]
 
-    summary["sharpe"] = summary["mean_return"] / summary["std_return"].replace(0, np.nan)
+    if df.empty:
+        print("No signals match the filter criteria.")
+        return
+
+    # Recompute summary if filtered
+    if args.ticker or args.type:
+        import numpy as np
+        summary = df.groupby("signal_type").agg(
+            n_signals=("adj_return", "count"),
+            win_rate=("win", "mean"),
+            mean_return=("adj_return", "mean"),
+            median_return=("adj_return", "median"),
+            std_return=("adj_return", "std"),
+        ).reset_index()
+        summary["sharpe"] = summary["mean_return"] / summary["std_return"].replace(0, np.nan)
+
+    skipped = overall["n_skipped"]
 
     print("\n" + "=" * 80)
     print("SIGNAL VALIDATION REPORT")
     print("=" * 80)
-    print(f"\nTotal signals evaluated: {len(df)} ({skipped} skipped — no market data or watch direction)")
+    print(f"\nTotal signals evaluated: {len(df)} ({skipped} skipped — no market data or bad direction)")
     print(f"\n{'Signal Type':<25} {'N':>5} {'Win%':>7} {'Mean':>8} {'Median':>8} {'Std':>8} {'Sharpe':>8}")
     print("-" * 80)
 

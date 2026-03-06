@@ -1,5 +1,6 @@
 """Shared utilities for research reports."""
 
+import json
 import logging
 import sqlite3
 from dataclasses import dataclass, field
@@ -17,6 +18,36 @@ from analysis.event_study import EventStudyResults
 logger = logging.getLogger(__name__)
 
 
+def _json_serializer(obj):
+    """Custom JSON serializer for objects not serializable by default."""
+    if isinstance(obj, EventStudyResults):
+        return {
+            "study_name": obj.study_name,
+            "num_events": obj.num_events,
+            "mean_car": obj.mean_car,
+            "median_car": obj.median_car,
+            "t_statistic": obj.t_statistic,
+            "p_value": obj.p_value,
+            "win_rate": obj.win_rate,
+            "sharpe_ratio": obj.sharpe_ratio,
+        }
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, (np.bool_,)):
+        return bool(obj)
+    if isinstance(obj, pd.DataFrame):
+        return obj.to_dict(orient="records")
+    if isinstance(obj, pd.Series):
+        return obj.to_dict()
+    if isinstance(obj, (date_type,)):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
 @dataclass
 class ResearchReportResults:
     """Container for a complete research report output."""
@@ -31,10 +62,45 @@ class ResearchReportResults:
     signal_parameters: dict[str, Any] = field(default_factory=dict)
 
     def save_all_to_db(self, db_path: str | None = None) -> list[int]:
-        """Save all event studies to the database. Returns list of study_ids."""
+        """Save all event studies and report metadata to the database. Returns list of study_ids."""
+        path = db_path or DB_PATH
         ids = []
         for es in self.event_studies:
-            ids.append(es.save_to_db(db_path or DB_PATH))
+            ids.append(es.save_to_db(path))
+
+        # Persist report metadata (additional_analyses + recommendations)
+        try:
+            conn = sqlite3.connect(path)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS research_reports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_number INTEGER NOT NULL,
+                    report_name TEXT NOT NULL,
+                    hypothesis TEXT,
+                    additional_analyses_json TEXT,
+                    recommendations_json TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(report_number)
+                )
+            """)
+            conn.execute(
+                """INSERT OR REPLACE INTO research_reports
+                   (report_number, report_name, hypothesis, additional_analyses_json,
+                    recommendations_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""",
+                (
+                    self.report_number,
+                    self.report_name,
+                    self.hypothesis,
+                    json.dumps(self.additional_analyses, default=_json_serializer),
+                    json.dumps(self.recommendations, default=_json_serializer),
+                ),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error("Failed to persist report metadata for report %d: %s", self.report_number, e)
+
         return ids
 
     def summary(self) -> str:

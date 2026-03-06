@@ -319,3 +319,98 @@ def evaluate_and_send() -> int:
     conn.close()
     logger.info("Alert engine: %d alerts sent", alerts_sent)
     return alerts_sent
+
+
+def dry_run_alerts() -> list[dict]:
+    """Evaluate all alert rules without sending emails.
+
+    Returns list of {"rule_name": str, "body": str, "event_count": int}
+    for each rule that would fire.
+    """
+    cfg = load_config()
+    alerts_cfg = cfg.get("alerts", {})
+    rules = alerts_cfg.get("rules", [])
+
+    if not rules:
+        return []
+
+    # Apply user preference filters (same as _get_alert_config but skip SMTP requirement)
+    prefs = {}
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        for row in conn.execute("SELECT key, value FROM user_preferences").fetchall():
+            prefs[row[0]] = row[1]
+        conn.close()
+    except Exception:
+        pass
+
+    if prefs.get("alert_enabled") == "false":
+        return []
+
+    if "alert_rules" in prefs:
+        import json
+        try:
+            enabled_rules = json.loads(prefs["alert_rules"])
+            rules = [
+                r for r in rules
+                if enabled_rules.get(r.get("name", ""), True)
+            ]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    conn = sqlite3.connect(DB_PATH)
+    fired = []
+
+    for rule in rules:
+        name = rule.get("name", "Unknown Rule")
+        table = rule.get("table", "")
+        condition = rule.get("condition", "1=1")
+        lookback = rule.get("lookback_hours", 24)
+        is_custom = rule.get("custom_query", False)
+
+        try:
+            if is_custom:
+                if "Lobbying" in name:
+                    try:
+                        has_alert, body = _check_lobbying_spikes(conn)
+                    except Exception:
+                        continue
+                elif "Regime" in name:
+                    has_alert, body = _check_regime_change(conn)
+                elif "Conviction" in name or "Signal" in name:
+                    has_alert, body = _check_high_conviction_signals(conn)
+                elif "Pipeline" in name or "Deadline" in name:
+                    has_alert, body = _check_pipeline_deadlines(conn)
+                elif "Stale" in name or "Staleness" in name:
+                    has_alert, body = _check_data_staleness(conn)
+                else:
+                    continue
+
+                if has_alert:
+                    fired.append({
+                        "rule_name": name,
+                        "body": body,
+                        "event_count": body.count("\n\n"),
+                    })
+            else:
+                query = (
+                    f"SELECT * FROM {table} "
+                    f"WHERE ({condition}) "
+                    f"AND created_at >= datetime('now', '-{lookback} hours')"
+                )
+                cursor = conn.execute(query)
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description] if cursor.description else []
+
+                if rows:
+                    body = _format_event_body(name, rows, columns)
+                    fired.append({
+                        "rule_name": name,
+                        "body": body,
+                        "event_count": len(rows),
+                    })
+        except Exception as e:
+            logger.error("Error in dry-run for rule '%s': %s", name, e)
+
+    conn.close()
+    return fired

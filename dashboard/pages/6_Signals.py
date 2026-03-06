@@ -454,6 +454,98 @@ else:
         quality.columns = ["Signal Type", "Win Rate", "Avg PnL", "N Trades", "Verdict"]
         st.dataframe(quality, use_container_width=True, hide_index=True)
 
+# ── Signal Validation Scorecard ──────────────────────────────────
+st.markdown("---")
+st.subheader("Signal Validation Scorecard")
+st.caption("Back-tested signal performance against actual market data")
+
+
+@st.cache_data(ttl=300)
+def _validate_signals():
+    from analysis.signal_validator import validate_signals
+    return validate_signals()
+
+
+with st.spinner("Validating signals against market data..."):
+    validation = _validate_signals()
+
+if not validation:
+    st.info("No trading signals to validate. Generate signals first from the Settings page.")
+elif validation.get("overall", {}).get("n_evaluated", 0) == 0:
+    n_skip = validation.get("overall", {}).get("n_skipped", 0)
+    st.info(f"No signals had matching market data for validation. ({n_skip} skipped — missing price data or invalid direction)")
+else:
+    v_overall = validation["overall"]
+    v_by_type = validation["by_type"]
+    v_by_conv = validation["by_conviction"]
+
+    # KPI row
+    kpi_cols = st.columns(5)
+    with kpi_cols[0]:
+        st.metric("Signals Validated", f"{v_overall['n_evaluated']:,}")
+    with kpi_cols[1]:
+        st.metric("Overall Win Rate", f"{v_overall['win_rate']:.1%}")
+    with kpi_cols[2]:
+        st.metric("Mean Return", f"{v_overall['mean_return']:+.2%}")
+    with kpi_cols[3]:
+        st.metric("Median Return", f"{v_overall['median_return']:+.2%}")
+    with kpi_cols[4]:
+        sharpe_str = f"{v_overall['sharpe']:+.2f}" if v_overall['sharpe'] is not None else "N/A"
+        st.metric("Sharpe Ratio", sharpe_str)
+
+    # Bar charts side-by-side
+    val_chart1, val_chart2 = st.columns(2)
+
+    with val_chart1:
+        if not v_by_type.empty:
+            chart_df = v_by_type.copy()
+            chart_df["win_rate_pct"] = chart_df["win_rate"] * 100
+            chart_df["label"] = chart_df.apply(
+                lambda r: f"N={int(r['n_signals'])}", axis=1
+            )
+            fig = px.bar(
+                chart_df, x="signal_type", y="win_rate_pct",
+                color="win_rate_pct",
+                color_continuous_scale=["#ef4444", "#f59e0b", "#22c55e"],
+                text="label",
+                title="Win Rate by Signal Type",
+                labels={"win_rate_pct": "Win Rate (%)", "signal_type": "Signal Type"},
+            )
+            fig.add_hline(y=50, line_dash="dash", line_color="gray", annotation_text="50%")
+            fig.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
+            st.plotly_chart(fig, use_container_width=True)
+
+    with val_chart2:
+        if not v_by_type.empty:
+            chart_df = v_by_type.copy()
+            chart_df["mean_return_pct"] = chart_df["mean_return"] * 100
+            chart_df["label"] = chart_df.apply(
+                lambda r: f"N={int(r['n_signals'])}", axis=1
+            )
+            fig = px.bar(
+                chart_df, x="signal_type", y="mean_return_pct",
+                color="mean_return_pct",
+                color_continuous_scale=["#ef4444", "#94a3b8", "#22c55e"],
+                text="label",
+                title="Mean Return by Signal Type",
+                labels={"mean_return_pct": "Mean Return (%)", "signal_type": "Signal Type"},
+            )
+            fig.add_hline(y=0, line_dash="dash", line_color="gray")
+            fig.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Conviction breakdown
+    if not v_by_conv.empty:
+        with st.expander("Breakdown by Conviction Level"):
+            conv_display = v_by_conv.copy()
+            conv_display["win_rate"] = conv_display["win_rate"].apply(lambda x: f"{x:.1%}")
+            conv_display["mean_return"] = conv_display["mean_return"].apply(lambda x: f"{x:+.2%}")
+            conv_display.columns = ["Conviction", "N Signals", "Win Rate", "Mean Return"]
+            st.dataframe(conv_display, use_container_width=True, hide_index=True)
+
+    if v_overall["n_skipped"] > 0:
+        st.caption(f"{v_overall['n_skipped']} signal(s) skipped due to missing market data or invalid direction.")
+
 # ── Row 4: Recent Trades ─────────────────────────────────────────────
 trades_df = load_paper_trades()
 
